@@ -36,6 +36,7 @@ import {
 import { Paths } from "@app/Paths";
 import { Assessment, Ref, TaskState } from "@app/api/models";
 import { getArchetypeById, getTasksByIds } from "@app/api/rest";
+import { getTaskById } from "@app/api/rest/tasks";
 import { AppPlaceholder } from "@app/components/AppPlaceholder";
 import { ApplicationDependenciesForm } from "@app/components/ApplicationDependenciesFormContainer/ApplicationDependenciesForm";
 import { ConditionalRender } from "@app/components/ConditionalRender";
@@ -308,6 +309,34 @@ export const ApplicationsTable: FC = () => {
   const isTaskCancellable = (application: DecoratedApplication) => {
     const task = application.tasks.currentAnalyzer;
     return !!task && !TaskStates.Terminal.includes(task?.state ?? "");
+  };
+
+  const handleOpenPullRequest = async (application: DecoratedApplication) => {
+    const taskId = application.tasks.currentMigration?.id;
+    if (!taskId || !application.repository?.url) return;
+
+    try {
+      const task = await getTaskById(taskId);
+      const branch = (task.data as Record<string, unknown>)?.branch as string;
+      if (!branch) {
+        pushNotification({
+          title: "No branch info found for this migration",
+          variant: "warning",
+        });
+        return;
+      }
+      const baseBranch = application.repository.branch || "main";
+      let webUrl = application.repository.url.replace(/\.git$/, "");
+      if (webUrl.startsWith("git@github.com:")) {
+        webUrl = webUrl.replace("git@github.com:", "https://github.com/");
+      }
+      window.open(`${webUrl}/compare/${baseBranch}...${branch}`, "_blank");
+    } catch (error) {
+      pushNotification({
+        title: "Failed to retrieve migration details",
+        variant: "danger",
+      });
+    }
   };
 
   // TODO: Perf concerns for this query: https://github.com/konveyor/tackle2-ui/issues/2350
@@ -1285,6 +1314,17 @@ export const ApplicationsTable: FC = () => {
                                 isTaskCancellable(application) && {
                                   title: t("actions.cancelAnalysis"),
                                   onClick: () => cancelAnalysis(application),
+                                },
+                            ],
+                            [
+                              application.tasks.currentMigration &&
+                                TaskStates.Success.includes(
+                                  application.tasks.currentMigration.state ?? ""
+                                ) &&
+                                application.repository?.url && {
+                                  title: "Open Pull Request",
+                                  onClick: () =>
+                                    handleOpenPullRequest(application),
                                 },
                             ],
                             [

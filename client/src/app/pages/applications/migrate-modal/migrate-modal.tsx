@@ -98,7 +98,7 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
         },
         tasks: applications.map((app) => ({
           name: `${selectedAgent.name}.${app.name}.migration`,
-          data: {},
+          data: { branch: trimmedBranch },
           application: { id: app.id, name: app.name },
         })),
       } as unknown as Taskgroup;

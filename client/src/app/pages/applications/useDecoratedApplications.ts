@@ -53,6 +53,8 @@ export interface DecoratedApplication extends Application {
 
     /** The most recently created `kind === "analyzer"` task for the application */
     currentAnalyzer: TaskDashboard | undefined;
+    /** The most recently created `kind === "migration"` task for the application */
+    currentMigration: TaskDashboard | undefined;
   };
   tasksStatus: ApplicationTasksStatus;
 
@@ -159,6 +161,7 @@ const decorateApplications = (
         ),
 
         currentAnalyzer: tasksByKind["analyzer"]?.[0],
+        currentMigration: tasksByKind["migration"]?.[0],
       },
 
       assessmentStatus: buildApplicationAssessmentStatus(
