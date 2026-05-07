@@ -2,30 +2,30 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 
 import { DEFAULT_REFETCH_INTERVAL } from "@app/Constants";
-import { MigratorConfig } from "@app/api/models";
+import { AgentPlan } from "@app/api/models";
 import {
-  createMigrator,
-  deleteMigrator,
-  getMigratorById,
-  getMigrators,
-  updateMigrator,
+  createAgentPlan,
+  deleteAgentPlan,
+  getAgentPlanById,
+  getAgentPlans,
+  updateAgentPlan,
 } from "@app/api/rest";
 
-export const MIGRATORS_QUERY_KEY = "migrators";
-export const MIGRATOR_QUERY_KEY = "migrator";
+export const AGENT_PLANS_QUERY_KEY = "agentPlans";
+export const AGENT_PLAN_QUERY_KEY = "agentPlan";
 
-export const useFetchMigrators = (
+export const useFetchAgentPlans = (
   refetchInterval: number | false = DEFAULT_REFETCH_INTERVAL
 ) => {
   const { isLoading, isSuccess, error, refetch, data } = useQuery({
-    queryKey: [MIGRATORS_QUERY_KEY],
-    queryFn: getMigrators,
+    queryKey: [AGENT_PLANS_QUERY_KEY],
+    queryFn: getAgentPlans,
     onError: (error: AxiosError) => console.log(error),
     refetchInterval,
   });
 
   return {
-    migrators: data || [],
+    agentPlans: data || [],
     isLoading,
     isSuccess,
     fetchError: error,
@@ -33,68 +33,68 @@ export const useFetchMigrators = (
   };
 };
 
-export const useFetchMigratorById = (id?: number | string) => {
+export const useFetchAgentPlanById = (id?: number | string) => {
   const { data, isLoading, error } = useQuery({
-    queryKey: [MIGRATOR_QUERY_KEY, id],
+    queryKey: [AGENT_PLAN_QUERY_KEY, id],
     queryFn: () =>
-      id === undefined ? Promise.resolve(undefined) : getMigratorById(id),
+      id === undefined ? Promise.resolve(undefined) : getAgentPlanById(id),
     onError: (error: AxiosError) => console.log("error, ", error),
     enabled: id !== undefined,
   });
 
   return {
-    migrator: data,
+    agentPlan: data,
     isLoading,
     fetchError: error,
   };
 };
 
-export const useCreateMigratorMutation = (
+export const useCreateAgentPlanMutation = (
   onSuccess: () => void,
   onError: (err: AxiosError) => void
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: createMigrator,
+    mutationFn: createAgentPlan,
     onSuccess: () => {
       onSuccess();
-      queryClient.invalidateQueries({ queryKey: [MIGRATORS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [AGENT_PLANS_QUERY_KEY] });
     },
     onError: onError,
   });
 };
 
-export const useUpdateMigratorMutation = (
+export const useUpdateAgentPlanMutation = (
   onSuccess: (id: number) => void,
   onError: (err: AxiosError) => void
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: updateMigrator,
+    mutationFn: updateAgentPlan,
     onSuccess: (_, { id }) => {
       onSuccess(id);
-      queryClient.invalidateQueries({ queryKey: [MIGRATORS_QUERY_KEY] });
-      queryClient.invalidateQueries({ queryKey: [MIGRATOR_QUERY_KEY, id] });
+      queryClient.invalidateQueries({ queryKey: [AGENT_PLANS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [AGENT_PLAN_QUERY_KEY, id] });
     },
     onError: onError,
   });
 };
 
-export const useDeleteMigratorMutation = (
-  onSuccess: (migrator: MigratorConfig) => void,
+export const useDeleteAgentPlanMutation = (
+  onSuccess: (plan: AgentPlan) => void,
   onError: (err: AxiosError) => void
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (migrator: MigratorConfig) => deleteMigrator(migrator.id),
-    onSuccess: (_, migrator) => {
-      onSuccess(migrator);
-      queryClient.invalidateQueries({ queryKey: [MIGRATORS_QUERY_KEY] });
+    mutationFn: (plan: AgentPlan) => deleteAgentPlan(plan.id),
+    onSuccess: (_, plan) => {
+      onSuccess(plan);
+      queryClient.invalidateQueries({ queryKey: [AGENT_PLANS_QUERY_KEY] });
       queryClient.invalidateQueries({
-        queryKey: [MIGRATOR_QUERY_KEY, migrator.id],
+        queryKey: [AGENT_PLAN_QUERY_KEY, plan.id],
       });
     },
     onError: onError,

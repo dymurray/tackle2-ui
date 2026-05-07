@@ -10,18 +10,20 @@ import {
   Spinner,
   Text,
   TextContent,
+  TextInput,
 } from "@patternfly/react-core";
 import {
   CheckCircleIcon,
   ExclamationCircleIcon,
 } from "@patternfly/react-icons";
 
-import { MigratorConfig, Taskgroup } from "@app/api/models";
+import { Taskgroup } from "@app/api/models";
 import { createTaskgroup, submitTaskgroup } from "@app/api/rest";
 import { FilterSelectOptionProps } from "@app/components/FilterToolbar/FilterToolbar";
 import TypeaheadSelect from "@app/components/FilterToolbar/components/TypeaheadSelect";
 import { useNotifications } from "@app/components/NotificationsContext";
-import { useFetchMigrators } from "@app/queries/migrators";
+import { useFetchAgentPlans } from "@app/queries/agent-plans";
+import { useFetchAgents } from "@app/queries/agents";
 
 export interface MigrateModalProps {
   applications: Array<{ id: number; name: string }>;
@@ -41,43 +43,61 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
   onClose,
 }) => {
   const { pushNotification } = useNotifications();
-  const { migrators } = useFetchMigrators();
-  const [selectedMigratorId, setSelectedMigratorId] = useState<string>("");
+  const { agents } = useFetchAgents();
+  const { agentPlans } = useFetchAgentPlans();
+  const [selectedAgentId, setSelectedAgentId] = useState<string>("");
+  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+  const [branch, setBranch] = useState<string>("");
   const [status, setStatus] = useState<SubmitStatus>({ phase: "idle" });
 
-  const migratorOptions: FilterSelectOptionProps[] = (migrators || []).map(
-    (m) => ({
-      value: String(m.id),
-      label: `${m.name}${m.migrationTarget ? ` (${m.migrationTarget})` : ""}`,
+  const agentOptions: FilterSelectOptionProps[] = (agents || []).map((a) => ({
+    value: String(a.id),
+    label: `${a.name}${a.modelConfig?.model ? ` (${a.modelConfig.model})` : ""}`,
+  }));
+
+  const planOptions: FilterSelectOptionProps[] = (agentPlans || []).map(
+    (p) => ({
+      value: String(p.id),
+      label: p.name,
     })
   );
 
-  const selectedMigrator = migrators.find(
-    (m) => String(m.id) === selectedMigratorId
-  );
+  const selectedAgent = agents.find((a) => String(a.id) === selectedAgentId);
+  const selectedPlan = agentPlans.find((p) => String(p.id) === selectedPlanId);
 
   const handleClose = () => {
     setStatus({ phase: "idle" });
-    setSelectedMigratorId("");
+    setSelectedAgentId("");
+    setSelectedPlanId("");
+    setBranch("");
     onClose();
   };
 
+  const trimmedBranch = branch.trim();
+
   const handleSubmit = useCallback(async () => {
-    if (!selectedMigrator) return;
+    if (!selectedAgent || !selectedPlan || !trimmedBranch) return;
     setStatus({ phase: "submitting" });
 
     try {
       const taskgroupPayload = {
-        name: `migration-${selectedMigrator.name}-${Date.now()}`,
+        name: `migration-${selectedAgent.name}-${Date.now()}`,
         kind: "migration",
         data: {
-          sourceRepository: selectedMigrator.sourceRepository,
-          assetRepository: selectedMigrator.assetRepository,
-          migrationTarget: selectedMigrator.migrationTarget,
-          pallet: selectedMigrator.pallet,
+          agent: {
+            name: selectedAgent.name,
+            description: selectedAgent.description,
+            pallet: selectedAgent.pallet,
+            modelConfig: selectedAgent.modelConfig,
+          },
+          plan: {
+            name: selectedPlan.name,
+            markdown: selectedPlan.markdown,
+          },
+          branch: trimmedBranch,
         },
         tasks: applications.map((app) => ({
-          name: `${selectedMigrator.name}.${app.name}.migration`,
+          name: `${selectedAgent.name}.${app.name}.migration`,
           data: {},
           application: { id: app.id, name: app.name },
         })),
@@ -105,7 +125,13 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
         variant: "danger",
       });
     }
-  }, [selectedMigrator, applications, pushNotification]);
+  }, [
+    selectedAgent,
+    selectedPlan,
+    trimmedBranch,
+    applications,
+    pushNotification,
+  ]);
 
   return (
     <Modal
@@ -129,7 +155,12 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
                 key="submit"
                 variant={ButtonVariant.primary}
                 onClick={handleSubmit}
-                isDisabled={!selectedMigrator || status.phase === "submitting"}
+                isDisabled={
+                  !selectedAgent ||
+                  !selectedPlan ||
+                  !trimmedBranch ||
+                  status.phase === "submitting"
+                }
                 isLoading={status.phase === "submitting"}
               >
                 Run Migration
@@ -169,7 +200,8 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
             </Text>
             <Text component="small">
               {applications.length} application(s) queued for migration using
-              &quot;{selectedMigrator?.name}&quot;.
+              agent &quot;{selectedAgent?.name}&quot; and plan &quot;
+              {selectedPlan?.name}&quot;.
             </Text>
           </TextContent>
         </Alert>
@@ -211,7 +243,7 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
         <>
           <TextContent>
             <Text component="p">
-              Select a migrator configuration to run against{" "}
+              Select an agent and a plan to run against{" "}
               <strong>
                 {applications.length} application
                 {applications.length !== 1 ? "s" : ""}
@@ -224,42 +256,58 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
           </TextContent>
 
           <Form style={{ marginTop: 16 }}>
-            <FormGroup label="Migrator" fieldId="migrator-select" isRequired>
+            <FormGroup label="Agent" fieldId="agent-select" isRequired>
               <TypeaheadSelect
-                placeholderText="Select a migrator configuration..."
-                toggleId="migrator-select-toggle"
-                toggleAriaLabel="Migrator config select"
-                ariaLabel="migrator"
-                value={selectedMigratorId}
-                options={migratorOptions}
-                onSelect={(selection) => setSelectedMigratorId(selection ?? "")}
+                placeholderText="Select an agent..."
+                toggleId="agent-select-toggle"
+                toggleAriaLabel="Agent select"
+                ariaLabel="agent"
+                value={selectedAgentId}
+                options={agentOptions}
+                onSelect={(selection) => setSelectedAgentId(selection ?? "")}
+              />
+            </FormGroup>
+            <FormGroup label="Plan" fieldId="plan-select" isRequired>
+              <TypeaheadSelect
+                placeholderText="Select an agent plan..."
+                toggleId="plan-select-toggle"
+                toggleAriaLabel="Agent plan select"
+                ariaLabel="plan"
+                value={selectedPlanId}
+                options={planOptions}
+                onSelect={(selection) => setSelectedPlanId(selection ?? "")}
+              />
+            </FormGroup>
+            <FormGroup label="Branch" fieldId="branch-input" isRequired>
+              <TextInput
+                id="branch-input"
+                aria-label="Branch"
+                placeholder="e.g. migration-output"
+                value={branch}
+                onChange={(_event, value) => setBranch(value)}
               />
             </FormGroup>
           </Form>
 
-          {selectedMigrator && (
+          {(selectedAgent || selectedPlan) && (
             <TextContent style={{ marginTop: 16 }}>
-              <Text component="small">
-                <strong>Source:</strong>{" "}
-                {selectedMigrator.sourceRepository?.url || "—"}
-                {selectedMigrator.sourceRepository?.branch
-                  ? ` (${selectedMigrator.sourceRepository.branch})`
-                  : ""}
-              </Text>
-              <Text component="small">
-                <strong>Asset Output:</strong>{" "}
-                {selectedMigrator.assetRepository?.url || "—"} →{" "}
-                {selectedMigrator.assetRepository?.branch || "—"}
-              </Text>
-              {selectedMigrator.migrationTarget && (
+              {selectedAgent && (
                 <Text component="small">
-                  <strong>Target:</strong> {selectedMigrator.migrationTarget}
+                  <strong>Agent:</strong> {selectedAgent.name}
+                  {selectedAgent.modelConfig?.model
+                    ? ` — model: ${selectedAgent.modelConfig.model}`
+                    : ""}
+                </Text>
+              )}
+              {selectedPlan && (
+                <Text component="small">
+                  <strong>Plan:</strong> {selectedPlan.name}
                 </Text>
               )}
             </TextContent>
           )}
 
-          {migrators.length === 0 && (
+          {agents.length === 0 && (
             <TextContent style={{ marginTop: 16 }}>
               <Text
                 component="small"
@@ -267,8 +315,20 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
                   color: "var(--pf-v5-global--warning-color--100)",
                 }}
               >
-                No migrator configurations found. Create one in Admin →
-                Migrators first.
+                No agents found. Create one in Admin → Agents first.
+              </Text>
+            </TextContent>
+          )}
+
+          {agentPlans.length === 0 && (
+            <TextContent style={{ marginTop: 8 }}>
+              <Text
+                component="small"
+                style={{
+                  color: "var(--pf-v5-global--warning-color--100)",
+                }}
+              >
+                No agent plans found. Create one in Admin → Agent Plans first.
               </Text>
             </TextContent>
           )}

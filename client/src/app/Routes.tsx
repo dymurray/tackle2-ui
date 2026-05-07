@@ -90,7 +90,8 @@ const AssetGenerators = lazy(
   () => import("./pages/asset-generators/asset-generators")
 );
 
-const Migrators = lazy(() => import("./pages/migrators/migrators"));
+const Agents = lazy(() => import("./pages/agents/agents"));
+const AgentPlans = lazy(() => import("./pages/agent-plans/agent-plans"));
 
 export interface IRoute<T> {
   path: T;
@@ -328,8 +329,13 @@ export const administrationRoutes: IRoute<AdminPathValues>[] = [
     exact: false,
   },
   {
-    comp: Migrators,
-    path: Paths.migrators,
+    comp: Agents,
+    path: Paths.agents,
+    exact: false,
+  },
+  {
+    comp: AgentPlans,
+    path: Paths.agentPlans,
     exact: false,
   },
 ];

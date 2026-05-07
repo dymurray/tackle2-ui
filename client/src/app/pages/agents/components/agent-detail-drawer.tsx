@@ -14,22 +14,23 @@ import {
 } from "@patternfly/react-core";
 import spacing from "@patternfly/react-styles/css/utilities/Spacing/spacing";
 
-import { MigratorConfig } from "@app/api/models";
+import { AgentConfig } from "@app/api/models";
 import { PageDrawerContent } from "@app/components/PageDrawerContext";
 
-export interface IMigratorDetailDrawerProps {
+export interface IAgentDetailDrawerProps {
   onCloseClick: () => void;
-  migrator: MigratorConfig | null;
+  agent: AgentConfig | null;
 }
 
 enum TabKey {
   Details = 0,
   Pallet,
+  Model,
 }
 
-const MigratorDetailDrawer: React.FC<IMigratorDetailDrawerProps> = ({
+const AgentDetailDrawer: React.FC<IAgentDetailDrawerProps> = ({
   onCloseClick,
-  migrator,
+  agent,
 }) => {
   const { t } = useTranslation();
 
@@ -39,17 +40,17 @@ const MigratorDetailDrawer: React.FC<IMigratorDetailDrawerProps> = ({
 
   return (
     <PageDrawerContent
-      isExpanded={!!migrator}
+      isExpanded={!!agent}
       onCloseClick={onCloseClick}
-      focusKey={migrator?.id}
-      pageKey="migrator-details"
+      focusKey={agent?.id}
+      pageKey="agent-details"
       header={
         <TextContent>
           <Text component="small" className={spacing.mb_0}>
-            Migrator Details
+            Agent Details
           </Text>
           <Title headingLevel="h2" size="lg" className={spacing.mtXs}>
-            {migrator?.name}
+            {agent?.name}
           </Title>
         </TextContent>
       }
@@ -63,13 +64,19 @@ const MigratorDetailDrawer: React.FC<IMigratorDetailDrawerProps> = ({
             eventKey={TabKey.Details}
             title={<TabTitleText>{t("terms.details")}</TabTitleText>}
           >
-            <DetailsTab migrator={migrator} />
+            <DetailsTab agent={agent} />
           </Tab>
           <Tab
             eventKey={TabKey.Pallet}
             title={<TabTitleText>Pallet</TabTitleText>}
           >
-            <PalletTab migrator={migrator} />
+            <PalletTab agent={agent} />
+          </Tab>
+          <Tab
+            eventKey={TabKey.Model}
+            title={<TabTitleText>Model</TabTitleText>}
+          >
+            <ModelTab agent={agent} />
           </Tab>
         </Tabs>
       </div>
@@ -77,89 +84,58 @@ const MigratorDetailDrawer: React.FC<IMigratorDetailDrawerProps> = ({
   );
 };
 
-export default MigratorDetailDrawer;
+export default AgentDetailDrawer;
 
-const DetailsTab: React.FC<{ migrator: MigratorConfig | null }> = ({
-  migrator,
-}) => {
+const DetailsTab: React.FC<{ agent: AgentConfig | null }> = ({ agent }) => {
   const { t } = useTranslation();
 
-  if (!migrator) {
+  if (!agent) {
     return null;
   }
 
   return (
     <DescriptionList>
-      {migrator.description && (
-        <Text component="small">{migrator.description}</Text>
-      )}
-
       <DescriptionListGroup>
-        <DescriptionListTerm>Migration Target</DescriptionListTerm>
-        <DescriptionListDescription>
-          {migrator.migrationTarget || t("terms.notAvailable")}
-        </DescriptionListDescription>
+        <DescriptionListTerm>{t("terms.name")}</DescriptionListTerm>
+        <DescriptionListDescription>{agent.name}</DescriptionListDescription>
       </DescriptionListGroup>
 
       <DescriptionListGroup>
-        <DescriptionListTerm>Source Repository</DescriptionListTerm>
+        <DescriptionListTerm>{t("terms.description")}</DescriptionListTerm>
         <DescriptionListDescription>
-          {migrator.sourceRepository?.url || t("terms.notAvailable")}
-        </DescriptionListDescription>
-      </DescriptionListGroup>
-
-      <DescriptionListGroup>
-        <DescriptionListTerm>Source Branch</DescriptionListTerm>
-        <DescriptionListDescription>
-          {migrator.sourceRepository?.branch || "main"}
-        </DescriptionListDescription>
-      </DescriptionListGroup>
-
-      <DescriptionListGroup>
-        <DescriptionListTerm>Asset Repository</DescriptionListTerm>
-        <DescriptionListDescription>
-          {migrator.assetRepository?.url || t("terms.notAvailable")}
-        </DescriptionListDescription>
-      </DescriptionListGroup>
-
-      <DescriptionListGroup>
-        <DescriptionListTerm>Asset Output Branch</DescriptionListTerm>
-        <DescriptionListDescription>
-          {migrator.assetRepository?.branch || t("terms.notAvailable")}
+          {agent.description || t("terms.notAvailable")}
         </DescriptionListDescription>
       </DescriptionListGroup>
     </DescriptionList>
   );
 };
 
-const PalletTab: React.FC<{ migrator: MigratorConfig | null }> = ({
-  migrator,
-}) => {
-  if (!migrator?.pallet) {
+const PalletTab: React.FC<{ agent: AgentConfig | null }> = ({ agent }) => {
+  if (!agent?.pallet) {
     return <Text component="small">No pallet configuration defined.</Text>;
   }
 
   return (
     <DescriptionList>
-      {migrator.pallet.archetype && (
+      {agent.pallet.archetype && (
         <DescriptionListGroup>
           <DescriptionListTerm>Archetype</DescriptionListTerm>
           <DescriptionListDescription>
-            {migrator.pallet.archetype.name}
+            {agent.pallet.archetype.name}
           </DescriptionListDescription>
         </DescriptionListGroup>
       )}
 
-      {migrator.pallet.skills && migrator.pallet.skills.length > 0 && (
+      {agent.pallet.skills && agent.pallet.skills.length > 0 && (
         <DescriptionListGroup>
           <DescriptionListTerm>Skills</DescriptionListTerm>
           <DescriptionListDescription>
-            {migrator.pallet.skills.join(", ")}
+            {agent.pallet.skills.join(", ")}
           </DescriptionListDescription>
         </DescriptionListGroup>
       )}
 
-      {migrator.pallet.yaml && (
+      {agent.pallet.yaml && (
         <DescriptionListGroup>
           <DescriptionListTerm>Pallet YAML</DescriptionListTerm>
           <DescriptionListDescription>
@@ -175,11 +151,53 @@ const PalletTab: React.FC<{ migrator: MigratorConfig | null }> = ({
                 fontSize: "0.85em",
               }}
             >
-              {migrator.pallet.yaml}
+              {agent.pallet.yaml}
             </pre>
           </DescriptionListDescription>
         </DescriptionListGroup>
       )}
+    </DescriptionList>
+  );
+};
+
+const ModelTab: React.FC<{ agent: AgentConfig | null }> = ({ agent }) => {
+  const { t } = useTranslation();
+
+  if (!agent?.modelConfig) {
+    return <Text component="small">No model configuration defined.</Text>;
+  }
+
+  const { provider_type, url, model, api_key } = agent.modelConfig;
+
+  return (
+    <DescriptionList>
+      <DescriptionListGroup>
+        <DescriptionListTerm>Provider type</DescriptionListTerm>
+        <DescriptionListDescription>
+          {provider_type || t("terms.notAvailable")}
+        </DescriptionListDescription>
+      </DescriptionListGroup>
+
+      <DescriptionListGroup>
+        <DescriptionListTerm>Provider URL</DescriptionListTerm>
+        <DescriptionListDescription>
+          {url || t("terms.notAvailable")}
+        </DescriptionListDescription>
+      </DescriptionListGroup>
+
+      <DescriptionListGroup>
+        <DescriptionListTerm>Model</DescriptionListTerm>
+        <DescriptionListDescription>
+          {model || t("terms.notAvailable")}
+        </DescriptionListDescription>
+      </DescriptionListGroup>
+
+      <DescriptionListGroup>
+        <DescriptionListTerm>API key</DescriptionListTerm>
+        <DescriptionListDescription>
+          {api_key ? "••••••" : t("terms.notAvailable")}
+        </DescriptionListDescription>
+      </DescriptionListGroup>
     </DescriptionList>
   );
 };

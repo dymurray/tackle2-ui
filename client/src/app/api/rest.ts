@@ -104,7 +104,8 @@ export * from "./rest/job-functions";
 export * from "./rest/migration-waves";
 export * from "./rest/platforms";
 export * from "./rest/schemas";
-export * from "./rest/migrators";
+export * from "./rest/agents";
+export * from "./rest/agent-plans";
 export * from "./rest/tasks";
 
 /**

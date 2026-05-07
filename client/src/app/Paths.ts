@@ -79,7 +79,8 @@ export const AdminPaths = {
   jira: "/jira",
   sourcePlatforms: "/source-platforms",
   assetGenerators: "/asset-generators",
-  migrators: "/migrators",
+  agents: "/agents",
+  agentPlans: "/agent-plans",
 } as const;
 
 export type AdminPathValues = (typeof AdminPaths)[keyof typeof AdminPaths];

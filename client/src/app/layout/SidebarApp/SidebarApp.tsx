@@ -330,8 +330,13 @@ export const AdminSidebar = ({
           </NavLink>
         </NavItem>
         <NavItem>
-          <NavLink to={AdminPaths.migrators} activeClassName="pf-m-current">
-            Migrators
+          <NavLink to={AdminPaths.agents} activeClassName="pf-m-current">
+            Agents
+          </NavLink>
+        </NavItem>
+        <NavItem>
+          <NavLink to={AdminPaths.agentPlans} activeClassName="pf-m-current">
+            Agent Plans
           </NavLink>
         </NavItem>
         <NavItem>

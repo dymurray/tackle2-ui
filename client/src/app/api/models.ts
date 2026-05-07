@@ -1019,32 +1019,31 @@ export interface Generator {
   /** all profiles currently referencing this generator */ profiles?: Ref[];
 }
 
-export interface MigratorSourceRepository {
-  url: string;
-  branch?: string;
-  identity?: Ref;
-}
-
-export interface MigratorAssetRepository {
-  url: string;
-  branch: string;
-  identity?: Ref;
-}
-
-export interface MigratorPallet {
+export interface AgentPallet {
   yaml?: string;
   archetype?: Ref;
   skills?: string[];
 }
 
-export interface MigratorConfig {
+export interface AgentModelConfig {
+  provider_type?: string;
+  url?: string;
+  model?: string;
+  api_key?: string;
+}
+
+export interface AgentConfig {
   id: number;
   name: string;
   description?: string;
-  sourceRepository: MigratorSourceRepository;
-  assetRepository: MigratorAssetRepository;
-  pallet?: MigratorPallet;
-  migrationTarget?: string;
+  pallet?: AgentPallet;
+  modelConfig?: AgentModelConfig;
+}
+
+export interface AgentPlan {
+  id: number;
+  name: string;
+  markdown: string;
 }
 
 // Could use https://www.npmjs.com/package/@types/json-schema in future if needed
