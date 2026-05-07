@@ -9,8 +9,13 @@ import {
   ActionGroup,
   Button,
   ButtonVariant,
+  Checkbox,
   ExpandableSection,
   Form,
+  FormGroup,
+  Text,
+  TextContent,
+  Title,
 } from "@patternfly/react-core";
 
 import type { AgentConfig, New } from "@app/api/models";
@@ -21,6 +26,7 @@ import {
   HookFormPFTextInput,
 } from "@app/components/HookFormPFFields";
 import { NotificationsContext } from "@app/components/NotificationsContext";
+import { useFetchAgentRecipes } from "@app/queries/agent-recipes";
 import {
   useCreateAgentMutation,
   useFetchAgents,
@@ -28,12 +34,10 @@ import {
 } from "@app/queries/agents";
 import { duplicateNameCheck, getAxiosErrorMessage } from "@app/utils/utils";
 
-import PalletEditor from "./pallet-editor";
-
 export interface AgentFormValues {
   name: string;
   description?: string;
-  palletYaml?: string;
+  recipeIds: number[];
   modelProviderType?: string;
   modelUrl?: string;
   modelName?: string;
@@ -60,9 +64,8 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  const { existingAgents, createAgent, updateAgent } = useAgentFormData({
-    onActionSuccess: onClose,
-  });
+  const { existingAgents, recipes, createAgent, updateAgent } =
+    useAgentFormData({ onActionSuccess: onClose });
 
   const validationSchema = useMemo(
     () =>
@@ -85,7 +88,7 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
           .string()
           .trim()
           .max(250, t("validation.maxLength", { length: 250 })),
-        palletYaml: yup.string().trim(),
+        recipeIds: yup.array().of(yup.number().required()).default([]),
         modelProviderType: yup
           .string()
           .trim()
@@ -106,13 +109,13 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
     [t, existingAgents, agent]
   );
 
-  const defaultValues = useMemo(
+  const defaultValues = useMemo<AgentFormValues>(
     () =>
       !agent
         ? {
             name: "",
             description: "",
-            palletYaml: "",
+            recipeIds: [],
             modelProviderType: "",
             modelUrl: "",
             modelName: "",
@@ -121,7 +124,7 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
         : {
             name: agent.name,
             description: agent.description || "",
-            palletYaml: agent.pallet?.yaml || "",
+            recipeIds: agent.recipeIds ?? [],
             modelProviderType: agent.modelConfig?.provider_type || "",
             modelUrl: agent.modelConfig?.url || "",
             modelName: agent.modelConfig?.model || "",
@@ -132,7 +135,7 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
 
   const formMethods = useForm<AgentFormValues>({
     defaultValues,
-    resolver: yupResolver(validationSchema),
+    resolver: yupResolver(validationSchema) as never,
     mode: "all",
   });
 
@@ -152,9 +155,7 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
     const payload: New<AgentConfig> = {
       name: values.name.trim(),
       description: values.description?.trim() || undefined,
-      pallet: values.palletYaml?.trim()
-        ? { yaml: values.palletYaml.trim() }
-        : undefined,
+      recipeIds: values.recipeIds.length > 0 ? values.recipeIds : undefined,
       modelConfig: hasModelConfig
         ? {
             provider_type: providerType || undefined,
@@ -193,18 +194,51 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
           fieldId="agent-description"
         />
 
-        {/* Pallet Configuration — heading is rendered by PalletEditor */}
+        {/* Recipes (multi-select) */}
+        <Title headingLevel="h3" size="md" style={{ marginTop: 16 }}>
+          Recipes
+        </Title>
         <HookFormPFGroupController
           control={control}
-          name="palletYaml"
+          name="recipeIds"
           label=""
-          fieldId="agent-pallet-yaml"
-          renderInput={({ field: { value, onChange } }) => (
-            <PalletEditor
-              value={value || ""}
-              onChange={(val) => onChange(val)}
-            />
-          )}
+          fieldId="agent-recipe-ids"
+          renderInput={({ field: { value, onChange } }) => {
+            const selected: number[] = Array.isArray(value) ? value : [];
+            const toggle = (id: number, checked: boolean) => {
+              const next = checked
+                ? [...new Set([...selected, id])]
+                : selected.filter((s) => s !== id);
+              onChange(next);
+            };
+            if (recipes.length === 0) {
+              return (
+                <TextContent>
+                  <Text component="small">
+                    No recipes defined. Create one in Admin → Agent Recipes.
+                  </Text>
+                </TextContent>
+              );
+            }
+            return (
+              <FormGroup
+                fieldId="agent-recipe-checkboxes"
+                role="group"
+                aria-label="Recipes"
+              >
+                {recipes.map((recipe) => (
+                  <Checkbox
+                    key={recipe.id}
+                    id={`agent-recipe-${recipe.id}`}
+                    label={recipe.name}
+                    description={recipe.description}
+                    isChecked={selected.includes(recipe.id)}
+                    onChange={(_event, checked) => toggle(recipe.id, checked)}
+                  />
+                ))}
+              </FormGroup>
+            );
+          }}
         />
 
         {/* Model Configuration (optional) */}
@@ -281,6 +315,8 @@ const useAgentFormData = ({
 
   const { agents: existingAgents, isSuccess: isAgentsSuccess } =
     useFetchAgents();
+  const { agentRecipes: recipes, isSuccess: isRecipesSuccess } =
+    useFetchAgentRecipes();
 
   const onCreateSuccess = () => {
     pushNotification({
@@ -323,7 +359,8 @@ const useAgentFormData = ({
 
   return {
     existingAgents,
-    isDataReady: isAgentsSuccess,
+    recipes,
+    isDataReady: isAgentsSuccess && isRecipesSuccess,
     createAgent,
     updateAgent,
   };

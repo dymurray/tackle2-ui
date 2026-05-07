@@ -22,7 +22,9 @@ import { createTaskgroup, submitTaskgroup } from "@app/api/rest";
 import { FilterSelectOptionProps } from "@app/components/FilterToolbar/FilterToolbar";
 import TypeaheadSelect from "@app/components/FilterToolbar/components/TypeaheadSelect";
 import { useNotifications } from "@app/components/NotificationsContext";
+import { mergePalletYamls } from "@app/pages/agent-recipes/components/pallet-utils";
 import { useFetchAgentPlans } from "@app/queries/agent-plans";
+import { useFetchAgentRecipes } from "@app/queries/agent-recipes";
 import { useFetchAgents } from "@app/queries/agents";
 
 export interface MigrateModalProps {
@@ -45,6 +47,7 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
   const { pushNotification } = useNotifications();
   const { agents } = useFetchAgents();
   const { agentPlans } = useFetchAgentPlans();
+  const { agentRecipes } = useFetchAgentRecipes();
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [branch, setBranch] = useState<string>("");
@@ -80,6 +83,17 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
     setStatus({ phase: "submitting" });
 
     try {
+      // Resolve the agent's recipes into a single merged pallet.yaml string.
+      // The addon contract (tackle2-addon-kai/cmd/addon/main.go) expects
+      // `data.agent.pallet.yaml` as one YAML doc that it writes verbatim to
+      // pallet.yaml — recipes are a UI-side abstraction, merged at submit time.
+      const recipeIds = selectedAgent.recipeIds ?? [];
+      const recipeYamls = recipeIds
+        .map((id) => agentRecipes.find((r) => r.id === id)?.yaml)
+        .filter((y): y is string => !!y && y.trim().length > 0);
+      const mergedYaml =
+        recipeYamls.length > 0 ? mergePalletYamls(recipeYamls) : "";
+
       const taskgroupPayload = {
         name: `migration-${selectedAgent.name}-${Date.now()}`,
         kind: "migration",
@@ -87,7 +101,7 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
           agent: {
             name: selectedAgent.name,
             description: selectedAgent.description,
-            pallet: selectedAgent.pallet,
+            pallet: mergedYaml ? { yaml: mergedYaml } : undefined,
             modelConfig: selectedAgent.modelConfig,
           },
           plan: {
@@ -128,6 +142,7 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
   }, [
     selectedAgent,
     selectedPlan,
+    agentRecipes,
     trimmedBranch,
     applications,
     pushNotification,

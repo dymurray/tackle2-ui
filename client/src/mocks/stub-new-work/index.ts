@@ -3,6 +3,7 @@ import { type RestHandler } from "msw";
 import { config } from "../config";
 
 import agentPlans from "./agent-plans";
+import agentRecipes from "./agent-recipes";
 import agents from "./agents";
 import applications from "./applications";
 import archetypes from "./archetypes";
@@ -24,6 +25,7 @@ const enabledStubs: RestHandler[] = [
   ...(enableMe("applications") ? applications : []),
   ...agents,
   ...agentPlans,
+  ...agentRecipes,
 ].filter(Boolean);
 
 export default enabledStubs;

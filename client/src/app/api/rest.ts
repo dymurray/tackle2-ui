@@ -106,6 +106,7 @@ export * from "./rest/platforms";
 export * from "./rest/schemas";
 export * from "./rest/agents";
 export * from "./rest/agent-plans";
+export * from "./rest/agent-recipes";
 export * from "./rest/tasks";
 
 /**

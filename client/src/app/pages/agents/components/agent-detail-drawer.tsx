@@ -16,6 +16,7 @@ import spacing from "@patternfly/react-styles/css/utilities/Spacing/spacing";
 
 import { AgentConfig } from "@app/api/models";
 import { PageDrawerContent } from "@app/components/PageDrawerContext";
+import { useFetchAgentRecipes } from "@app/queries/agent-recipes";
 
 export interface IAgentDetailDrawerProps {
   onCloseClick: () => void;
@@ -24,7 +25,7 @@ export interface IAgentDetailDrawerProps {
 
 enum TabKey {
   Details = 0,
-  Pallet,
+  Recipes,
   Model,
 }
 
@@ -67,10 +68,10 @@ const AgentDetailDrawer: React.FC<IAgentDetailDrawerProps> = ({
             <DetailsTab agent={agent} />
           </Tab>
           <Tab
-            eventKey={TabKey.Pallet}
-            title={<TabTitleText>Pallet</TabTitleText>}
+            eventKey={TabKey.Recipes}
+            title={<TabTitleText>Recipes</TabTitleText>}
           >
-            <PalletTab agent={agent} />
+            <RecipesTab agent={agent} />
           </Tab>
           <Tab
             eventKey={TabKey.Model}
@@ -110,49 +111,37 @@ const DetailsTab: React.FC<{ agent: AgentConfig | null }> = ({ agent }) => {
   );
 };
 
-const PalletTab: React.FC<{ agent: AgentConfig | null }> = ({ agent }) => {
-  if (!agent?.pallet) {
-    return <Text component="small">No pallet configuration defined.</Text>;
+const RecipesTab: React.FC<{ agent: AgentConfig | null }> = ({ agent }) => {
+  const { agentRecipes } = useFetchAgentRecipes();
+
+  if (!agent) return null;
+  const ids = agent.recipeIds ?? [];
+  if (ids.length === 0) {
+    return <Text component="small">No recipes assigned.</Text>;
   }
+
+  const selected = agentRecipes.filter((r) => ids.includes(r.id));
+  const missing = ids.filter((id) => !agentRecipes.some((r) => r.id === id));
 
   return (
     <DescriptionList>
-      {agent.pallet.archetype && (
-        <DescriptionListGroup>
-          <DescriptionListTerm>Archetype</DescriptionListTerm>
+      {selected.map((recipe) => (
+        <DescriptionListGroup key={recipe.id}>
+          <DescriptionListTerm>{recipe.name}</DescriptionListTerm>
           <DescriptionListDescription>
-            {agent.pallet.archetype.name}
+            {recipe.description || (
+              <Text component="small">No description</Text>
+            )}
           </DescriptionListDescription>
         </DescriptionListGroup>
-      )}
-
-      {agent.pallet.skills && agent.pallet.skills.length > 0 && (
+      ))}
+      {missing.length > 0 && (
         <DescriptionListGroup>
-          <DescriptionListTerm>Skills</DescriptionListTerm>
+          <DescriptionListTerm>Missing recipes</DescriptionListTerm>
           <DescriptionListDescription>
-            {agent.pallet.skills.join(", ")}
-          </DescriptionListDescription>
-        </DescriptionListGroup>
-      )}
-
-      {agent.pallet.yaml && (
-        <DescriptionListGroup>
-          <DescriptionListTerm>Pallet YAML</DescriptionListTerm>
-          <DescriptionListDescription>
-            <pre
-              style={{
-                whiteSpace: "pre-wrap",
-                wordBreak: "break-word",
-                maxHeight: 300,
-                overflow: "auto",
-                background: "var(--pf-v5-global--BackgroundColor--200)",
-                padding: "var(--pf-v5-global--spacer--sm)",
-                borderRadius: 4,
-                fontSize: "0.85em",
-              }}
-            >
-              {agent.pallet.yaml}
-            </pre>
+            <Text component="small">
+              Referenced recipe id(s) not found: {missing.join(", ")}
+            </Text>
           </DescriptionListDescription>
         </DescriptionListGroup>
       )}

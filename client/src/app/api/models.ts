@@ -1032,11 +1032,18 @@ export interface AgentModelConfig {
   api_key?: string;
 }
 
+export interface AgentRecipe {
+  id: number;
+  name: string;
+  description?: string;
+  yaml: string;
+}
+
 export interface AgentConfig {
   id: number;
   name: string;
   description?: string;
-  pallet?: AgentPallet;
+  recipeIds?: number[];
   modelConfig?: AgentModelConfig;
 }
 

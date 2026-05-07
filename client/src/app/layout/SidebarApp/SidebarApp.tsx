@@ -340,6 +340,11 @@ export const AdminSidebar = ({
           </NavLink>
         </NavItem>
         <NavItem>
+          <NavLink to={AdminPaths.agentRecipes} activeClassName="pf-m-current">
+            Agent Recipes
+          </NavLink>
+        </NavItem>
+        <NavItem>
           <NavLink to={UniversalPaths.tasks} activeClassName="pf-m-current">
             {t("sidebar.tasks")}
           </NavLink>

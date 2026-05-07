@@ -81,6 +81,7 @@ export const AdminPaths = {
   assetGenerators: "/asset-generators",
   agents: "/agents",
   agentPlans: "/agent-plans",
+  agentRecipes: "/agent-recipes",
 } as const;
 
 export type AdminPathValues = (typeof AdminPaths)[keyof typeof AdminPaths];
