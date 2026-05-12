@@ -1029,7 +1029,7 @@ export interface AgentModelConfig {
   provider_type?: string;
   url?: string;
   model?: string;
-  api_key?: string;
+  identity?: Ref;
 }
 
 export interface AgentRecipe {

@@ -21,6 +21,7 @@ import {
 import type { AgentConfig, New } from "@app/api/models";
 import { AppPlaceholder } from "@app/components/AppPlaceholder";
 import { ConditionalRender } from "@app/components/ConditionalRender";
+import SimpleSelect from "@app/components/FilterToolbar/components/SimpleSelect";
 import {
   HookFormPFGroupController,
   HookFormPFTextInput,
@@ -32,6 +33,7 @@ import {
   useFetchAgents,
   useUpdateAgentMutation,
 } from "@app/queries/agents";
+import { useFetchIdentities } from "@app/queries/identities";
 import { duplicateNameCheck, getAxiosErrorMessage } from "@app/utils/utils";
 
 export interface AgentFormValues {
@@ -41,7 +43,8 @@ export interface AgentFormValues {
   modelProviderType?: string;
   modelUrl?: string;
   modelName?: string;
-  modelApiKey?: string;
+  // Stored as the identity id; "" means no identity selected.
+  modelIdentityId?: string;
 }
 
 export interface AgentFormProps {
@@ -64,7 +67,7 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
 }) => {
   const { t } = useTranslation();
 
-  const { existingAgents, recipes, createAgent, updateAgent } =
+  const { existingAgents, recipes, identities, createAgent, updateAgent } =
     useAgentFormData({ onActionSuccess: onClose });
 
   const validationSchema = useMemo(
@@ -101,10 +104,7 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
           .string()
           .trim()
           .max(120, t("validation.maxLength", { length: 120 })),
-        modelApiKey: yup
-          .string()
-          .trim()
-          .max(500, t("validation.maxLength", { length: 500 })),
+        modelIdentityId: yup.string(),
       }),
     [t, existingAgents, agent]
   );
@@ -119,7 +119,7 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
             modelProviderType: "",
             modelUrl: "",
             modelName: "",
-            modelApiKey: "",
+            modelIdentityId: "",
           }
         : {
             name: agent.name,
@@ -128,7 +128,9 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
             modelProviderType: agent.modelConfig?.provider_type || "",
             modelUrl: agent.modelConfig?.url || "",
             modelName: agent.modelConfig?.model || "",
-            modelApiKey: agent.modelConfig?.api_key || "",
+            modelIdentityId: agent.modelConfig?.identity?.id
+              ? String(agent.modelConfig.identity.id)
+              : "",
           },
     [agent]
   );
@@ -149,8 +151,14 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
     const providerType = values.modelProviderType?.trim();
     const url = values.modelUrl?.trim();
     const modelName = values.modelName?.trim();
-    const apiKey = values.modelApiKey?.trim();
-    const hasModelConfig = providerType || url || modelName || apiKey;
+    const identityId = values.modelIdentityId
+      ? Number(values.modelIdentityId)
+      : undefined;
+    const identity =
+      identityId !== undefined
+        ? identities.find((i) => i.id === identityId)
+        : undefined;
+    const hasModelConfig = providerType || url || modelName || identity;
 
     const payload: New<AgentConfig> = {
       name: values.name.trim(),
@@ -161,7 +169,9 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
             provider_type: providerType || undefined,
             url: url || undefined,
             model: modelName || undefined,
-            api_key: apiKey || undefined,
+            identity: identity
+              ? { id: identity.id, name: identity.name }
+              : undefined,
           }
         : undefined,
     };
@@ -268,12 +278,27 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
             fieldId="agent-model-name"
             placeholder="e.g. gpt-4o"
           />
-          <HookFormPFTextInput
+          <HookFormPFGroupController
             control={control}
-            name="modelApiKey"
-            label="API key"
-            fieldId="agent-model-api-key"
-            type="password"
+            name="modelIdentityId"
+            label="Credentials"
+            fieldId="agent-model-identity"
+            renderInput={({ field: { value, onChange } }) => {
+              const options = identities.map((i) => ({
+                value: String(i.id),
+                label: `${i.name}${i.kind ? ` (${i.kind})` : ""}`,
+              }));
+              return (
+                <SimpleSelect
+                  toggleId="agent-model-identity-toggle"
+                  ariaLabel="Credentials"
+                  value={value || undefined}
+                  options={options}
+                  isDisabled={!options.length}
+                  onSelect={(selected) => onChange(selected ?? "")}
+                />
+              );
+            }}
           />
         </ExpandableSection>
 
@@ -317,6 +342,7 @@ const useAgentFormData = ({
     useFetchAgents();
   const { agentRecipes: recipes, isSuccess: isRecipesSuccess } =
     useFetchAgentRecipes();
+  const { identities, isSuccess: isIdentitiesSuccess } = useFetchIdentities();
 
   const onCreateSuccess = () => {
     pushNotification({
@@ -360,7 +386,8 @@ const useAgentFormData = ({
   return {
     existingAgents,
     recipes,
-    isDataReady: isAgentsSuccess && isRecipesSuccess,
+    identities,
+    isDataReady: isAgentsSuccess && isRecipesSuccess && isIdentitiesSuccess,
     createAgent,
     updateAgent,
   };

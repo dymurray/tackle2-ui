@@ -2,9 +2,6 @@ import { type RestHandler } from "msw";
 
 import { config } from "../config";
 
-import agentPlans from "./agent-plans";
-import agentRecipes from "./agent-recipes";
-import agents from "./agents";
 import applications from "./applications";
 import archetypes from "./archetypes";
 import assessments from "./assessments";
@@ -23,9 +20,6 @@ const enabledStubs: RestHandler[] = [
   ...(enableMe("assessments") ? assessments : []),
   ...(enableMe("questionnaires") ? questionnaires : []),
   ...(enableMe("applications") ? applications : []),
-  ...agents,
-  ...agentPlans,
-  ...agentRecipes,
 ].filter(Boolean);
 
 export default enabledStubs;

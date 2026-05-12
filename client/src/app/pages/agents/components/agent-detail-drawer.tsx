@@ -156,7 +156,7 @@ const ModelTab: React.FC<{ agent: AgentConfig | null }> = ({ agent }) => {
     return <Text component="small">No model configuration defined.</Text>;
   }
 
-  const { provider_type, url, model, api_key } = agent.modelConfig;
+  const { provider_type, url, model, identity } = agent.modelConfig;
 
   return (
     <DescriptionList>
@@ -182,9 +182,9 @@ const ModelTab: React.FC<{ agent: AgentConfig | null }> = ({ agent }) => {
       </DescriptionListGroup>
 
       <DescriptionListGroup>
-        <DescriptionListTerm>API key</DescriptionListTerm>
+        <DescriptionListTerm>Credentials</DescriptionListTerm>
         <DescriptionListDescription>
-          {api_key ? "••••••" : t("terms.notAvailable")}
+          {identity?.name || t("terms.notAvailable")}
         </DescriptionListDescription>
       </DescriptionListGroup>
     </DescriptionList>

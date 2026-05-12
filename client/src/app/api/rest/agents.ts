@@ -1,54 +1,49 @@
 import axios from "axios";
 
-import { AgentConfig, New } from "../models";
+import { AgentConfig, AgentModelConfig, New } from "../models";
 import { hub } from "../rest";
 
 const AGENTS = hub`/agents`;
 
-// In-memory store for local dev when Hub API doesn't have /agents yet
-let localStore: AgentConfig[] = [];
-let nextId = 1;
-const USE_LOCAL_FALLBACK = true;
+// Hub returns recipes as full {id, name} refs; on POST/PUT it only needs the id.
+type RecipeRef = { id: number; name?: string };
 
-export const getAgents = async (): Promise<AgentConfig[]> => {
-  if (USE_LOCAL_FALLBACK) return [...localStore];
-  return axios.get<AgentConfig[]>(AGENTS).then(({ data }) => data);
+type AgentWire = Omit<AgentConfig, "recipeIds"> & {
+  recipes?: RecipeRef[];
+  modelConfig?: AgentModelConfig;
 };
 
-export const getAgentById = async (
-  id: number | string
-): Promise<AgentConfig | undefined> => {
-  if (USE_LOCAL_FALLBACK) return localStore.find((a) => a.id === Number(id));
-  return axios.get<AgentConfig>(`${AGENTS}/${id}`).then(({ data }) => data);
+const toClient = (w: AgentWire): AgentConfig => {
+  const { recipes, ...rest } = w;
+  return {
+    ...rest,
+    recipeIds: recipes?.map((r) => r.id) ?? [],
+  };
 };
 
-export const createAgent = async (
-  agent: New<AgentConfig>
-): Promise<AgentConfig> => {
-  if (USE_LOCAL_FALLBACK) {
-    const created: AgentConfig = {
-      ...agent,
-      id: nextId++,
-    } as AgentConfig;
-    localStore.push(created);
-    return created;
-  }
-  return axios.post<AgentConfig>(AGENTS, agent).then((res) => res.data);
+const toServer = (a: AgentConfig | New<AgentConfig>): AgentWire => {
+  const { recipeIds, ...rest } = a as AgentConfig;
+  return {
+    ...rest,
+    recipes: (recipeIds ?? []).map((id) => ({ id })),
+  };
 };
 
-export const updateAgent = async (agent: AgentConfig): Promise<void> => {
-  if (USE_LOCAL_FALLBACK) {
-    const idx = localStore.findIndex((a) => a.id === agent.id);
-    if (idx !== -1) localStore[idx] = { ...agent };
-    return;
-  }
-  await axios.put<void>(`${AGENTS}/${agent.id}`, agent);
-};
+export const getAgents = (): Promise<AgentConfig[]> =>
+  axios.get<AgentWire[]>(AGENTS).then(({ data }) => data.map(toClient));
 
-export const deleteAgent = async (id: number): Promise<void> => {
-  if (USE_LOCAL_FALLBACK) {
-    localStore = localStore.filter((a) => a.id !== id);
-    return;
-  }
-  await axios.delete<void>(`${AGENTS}/${id}`);
-};
+export const getAgentById = (id: number | string): Promise<AgentConfig> =>
+  axios.get<AgentWire>(`${AGENTS}/${id}`).then(({ data }) => toClient(data));
+
+export const createAgent = (agent: New<AgentConfig>): Promise<AgentConfig> =>
+  axios
+    .post<AgentWire>(AGENTS, toServer(agent))
+    .then(({ data }) => toClient(data));
+
+export const updateAgent = (agent: AgentConfig): Promise<void> =>
+  axios
+    .put<void>(`${AGENTS}/${agent.id}`, toServer(agent))
+    .then(() => undefined);
+
+export const deleteAgent = (id: number): Promise<void> =>
+  axios.delete<void>(`${AGENTS}/${id}`).then(() => undefined);

@@ -26,6 +26,7 @@ import { mergePalletYamls } from "@app/pages/agent-recipes/components/pallet-uti
 import { useFetchAgentPlans } from "@app/queries/agent-plans";
 import { useFetchAgentRecipes } from "@app/queries/agent-recipes";
 import { useFetchAgents } from "@app/queries/agents";
+import { useFetchIdentities } from "@app/queries/identities";
 
 export interface MigrateModalProps {
   applications: Array<{ id: number; name: string }>;
@@ -48,6 +49,7 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
   const { agents } = useFetchAgents();
   const { agentPlans } = useFetchAgentPlans();
   const { agentRecipes } = useFetchAgentRecipes();
+  const { identities } = useFetchIdentities();
   const [selectedAgentId, setSelectedAgentId] = useState<string>("");
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
   const [branch, setBranch] = useState<string>("");
@@ -94,6 +96,23 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
       const mergedYaml =
         recipeYamls.length > 0 ? mergePalletYamls(recipeYamls) : "";
 
+      // The addon expects `modelConfig.api_key` as cleartext. The Agent
+      // resource only stores an Identity reference, so resolve the
+      // identity's secret here at submit time.
+      const identityId = selectedAgent.modelConfig?.identity?.id;
+      const resolvedIdentity = identityId
+        ? identities.find((i) => i.id === identityId)
+        : undefined;
+      const apiKey = resolvedIdentity?.key || resolvedIdentity?.password;
+      const resolvedModelConfig = selectedAgent.modelConfig
+        ? {
+            provider_type: selectedAgent.modelConfig.provider_type,
+            url: selectedAgent.modelConfig.url,
+            model: selectedAgent.modelConfig.model,
+            api_key: apiKey,
+          }
+        : undefined;
+
       const taskgroupPayload = {
         name: `migration-${selectedAgent.name}-${Date.now()}`,
         kind: "migration",
@@ -102,7 +121,7 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
             name: selectedAgent.name,
             description: selectedAgent.description,
             pallet: mergedYaml ? { yaml: mergedYaml } : undefined,
-            modelConfig: selectedAgent.modelConfig,
+            modelConfig: resolvedModelConfig,
           },
           plan: {
             name: selectedPlan.name,
@@ -143,6 +162,7 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
     selectedAgent,
     selectedPlan,
     agentRecipes,
+    identities,
     trimmedBranch,
     applications,
     pushNotification,
