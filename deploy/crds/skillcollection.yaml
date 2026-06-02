@@ -1,0 +1,113 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: skillcollections.konveyor.io
+spec:
+  group: konveyor.io
+  names:
+    kind: SkillCollection
+    listKind: SkillCollectionList
+    plural: skillcollections
+    singular: skillcollection
+    shortNames:
+      - scol
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >
+            SkillCollection groups multiple skills from OCI image references
+            or git sources. Adopts the skillimage.io/v1alpha1
+            SkillCollection format.
+
+            An Agent references SkillCollections to gain access to sets of
+            related capabilities. This is the bulk-loading mechanism: rather
+            than referencing 20 individual SkillCards, an Agent can reference
+            one SkillCollection that aggregates them.
+
+            Collections can mix sourcing strategies: some skills from OCI
+            images in a registry, others from a git repository containing
+            SKILL.md files.
+          required:
+            - spec
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - description
+              properties:
+                description:
+                  type: string
+                  description: >
+                    Human-readable description of this collection.
+                version:
+                  type: string
+                  description: >
+                    Semantic version of the collection.
+                skills:
+                  type: array
+                  description: >
+                    List of skills in this collection. Each entry is either
+                    an OCI image reference (name + image) or a git source
+                    (source URL pointing to a repo/directory containing
+                    skill directories).
+                  items:
+                    type: object
+                    properties:
+                      name:
+                        type: string
+                        description: >
+                          Name of the skill. Required for OCI image entries.
+                          Optional for git source entries (skills are
+                          discovered from the source).
+                      image:
+                        type: string
+                        description: >
+                          OCI image reference for a packaged skill.
+                          Example: "quay.io/konveyor/skills/maven-migration:1.0"
+                      source:
+                        type: string
+                        description: >
+                          Git URL pointing to a repository or subdirectory
+                          containing skill directories (each with SKILL.md).
+                          Example: "https://github.com/konveyor/skills/tree/main/migration"
+                      ref:
+                        type: string
+                        description: >
+                          Git ref (branch, tag, commit) to use when cloning
+                          from source. Defaults to the repo's default branch.
+            status:
+              type: object
+              properties:
+                skillCount:
+                  type: integer
+                  description: >
+                    Total number of skills resolved from this collection.
+                    For OCI entries, one per entry. For git sources,
+                    discovered at sync time.
+                ready:
+                  type: boolean
+                  description: >
+                    True when all skills in the collection are resolvable.
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Skills
+          type: integer
+          jsonPath: .status.skillCount
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

@@ -1,0 +1,184 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agentplans.konveyor.io
+spec:
+  group: konveyor.io
+  names:
+    kind: AgentPlan
+    listKind: AgentPlanList
+    plural: agentplans
+    singular: agentplan
+    shortNames:
+      - ap
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >
+            AgentPlan is a reusable playbook combining a high-level guide
+            with an ordered sequence of stages.
+
+            Created by architects or PMs to define how a migration (or
+            other agentic work) should be executed. Developers then run
+            the plan against specific applications.
+
+            Execution model:
+            - The plan's guide is written to the shared workspace as a
+              context file so each agent understands where its work fits
+              in the bigger picture.
+            - Each stage is a context boundary: phases within a stage
+              share the same Agent and execute in the same Sandbox (full
+              context continuity).
+            - Stage transitions create a new Sandbox. A shared workspace
+              PVC carries repository state and handoff documents across
+              the boundary.
+            - Each phase's instructions are joined with the Agent's
+              prompt to form the full task for the agent runtime.
+
+            Three layers of instructions compose at execution time:
+            1. Plan Guide -> workspace context file (ambient awareness)
+            2. Agent Prompt -> standing instructions (how to operate)
+            3. Phase Instructions -> specific task (what to do now)
+          required:
+            - spec
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - description
+              properties:
+                description:
+                  type: string
+                  description: >
+                    Short summary of this plan's purpose. Displayed in
+                    the UI list view.
+                guide:
+                  type: string
+                  description: >
+                    High-level markdown guide describing the overall
+                    approach, context, and goals. Written to the shared
+                    workspace as a context file before any phase starts.
+                    This provides ambient awareness to every agent in
+                    the plan — they understand where their phase fits in
+                    the bigger picture.
+                stages:
+                  type: array
+                  description: >
+                    Ordered sequence of stages. Each stage is a context
+                    boundary: all phases within a stage share the same
+                    Agent and execute in the same Sandbox (same pod,
+                    full context continuity). Stages always contain at
+                    least one phase.
+
+                    When execution transitions between stages, a new
+                    Sandbox is created for the next stage's Agent. The
+                    shared workspace PVC bridges context across the
+                    boundary — the next agent sees all file changes and
+                    handoff documents from previous stages.
+                  items:
+                    type: object
+                    required:
+                      - name
+                      - agentRef
+                      - phases
+                    properties:
+                      name:
+                        type: string
+                        description: >
+                          Name of this stage. Used for display and status
+                          tracking.
+                      description:
+                        type: string
+                        description: >
+                          Summary of what this stage accomplishes.
+                      agentRef:
+                        type: object
+                        required:
+                          - name
+                        properties:
+                          name:
+                            type: string
+                            description: >
+                              Name of the Agent CR in the same namespace.
+                        description: >
+                          The Agent that executes all phases in this
+                          stage. Determines the container image, skills,
+                          rules, LLM, and runtime.
+                      phases:
+                        type: array
+                        minItems: 1
+                        description: >
+                          Ordered sequence of phases within this stage.
+                          Executed sequentially in the same Sandbox.
+                          Each phase sends new instructions to the
+                          already-running agent, which maintains full
+                          context from previous phases in this stage.
+                        items:
+                          type: object
+                          required:
+                            - name
+                            - instructions
+                          properties:
+                            name:
+                              type: string
+                              description: >
+                                Name of this phase. Used for display
+                                and status tracking.
+                            description:
+                              type: string
+                              description: >
+                                Short summary of this phase's task.
+                            instructions:
+                              type: string
+                              description: >
+                                Markdown instructions for the agent.
+                                This is the specific task for this phase.
+                                Joined with the Agent's prompt at
+                                execution time. Example: "Analyze all
+                                Maven dependencies in pom.xml and update
+                                javax imports to jakarta equivalents."
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+                  description: >
+                    True when all Agents referenced by stages are ready.
+                stageCount:
+                  type: integer
+                  description: >
+                    Total number of stages in the plan.
+                phaseCount:
+                  type: integer
+                  description: >
+                    Total number of phases across all stages.
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Description
+          type: string
+          jsonPath: .spec.description
+          priority: 1
+        - name: Stages
+          type: integer
+          jsonPath: .status.stageCount
+        - name: Phases
+          type: integer
+          jsonPath: .status.phaseCount
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

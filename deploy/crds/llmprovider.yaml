@@ -1,0 +1,145 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: llmproviders.konveyor.io
+spec:
+  group: konveyor.io
+  names:
+    kind: LLMProvider
+    listKind: LLMProviderList
+    plural: llmproviders
+    singular: llmprovider
+    shortNames:
+      - llm
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >
+            LLMProvider represents an LLM service endpoint together with
+            credentials and the set of models it serves.
+
+            Each model declares its context window size and an optional
+            tier label (e.g. premium, efficient). The context window is
+            used to validate that an Agent's always-loaded rules fit
+            within budget before execution begins.
+
+            Credentials are stored in a Kubernetes Secret and referenced
+            by name. The Secret should contain the API key or token
+            required to authenticate with the provider.
+
+            Modeled after kagent's ModelConfig pattern but extended with
+            multi-model support and tier annotations for cost/quality
+            routing.
+          required:
+            - spec
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - url
+                - credentialsSecretRef
+                - models
+              properties:
+                url:
+                  type: string
+                  description: >
+                    Base URL of the LLM provider API. Examples:
+                    "https://api.openai.com/v1",
+                    "https://my-vllm.internal.corp/v1",
+                    "http://ollama.konveyor-tackle:11434"
+                credentialsSecretRef:
+                  type: object
+                  required:
+                    - name
+                  properties:
+                    name:
+                      type: string
+                      description: >
+                        Name of the Kubernetes Secret containing the API
+                        key or token. Must be in the same namespace.
+                    key:
+                      type: string
+                      default: api-key
+                      description: >
+                        Key within the Secret that holds the credential
+                        value. Defaults to "api-key".
+                  description: >
+                    Reference to a Kubernetes Secret containing
+                    credentials for the LLM provider.
+                provider:
+                  type: string
+                  description: >
+                    Provider type identifier. Used by the agent runtime
+                    to configure the correct API client. Examples:
+                    "openai", "anthropic", "azure-openai", "ollama",
+                    "google", "bedrock". Maps to goose's --provider flag
+                    or opencode's provider config.
+                models:
+                  type: array
+                  minItems: 1
+                  items:
+                    type: object
+                    required:
+                      - name
+                    properties:
+                      name:
+                        type: string
+                        description: >
+                          Model identifier as the provider expects it.
+                          Examples: "gpt-4o", "claude-sonnet-4-20250514",
+                          "llama-3.1-70b".
+                      contextWindow:
+                        type: integer
+                        description: >
+                          Maximum context window size in tokens. Used for
+                          context budget validation — the sum of all
+                          always-loaded rules must fit within this budget.
+                      tier:
+                        type: string
+                        description: >
+                          Optional cost/quality tier label. Examples:
+                          "premium", "efficient", "max". Used by the UI
+                          for display and by future routing logic.
+                  description: >
+                    Models available from this provider. An Agent
+                    references an LLMProvider and selects a specific
+                    model by name.
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+                  description: >
+                    True when the provider endpoint is reachable and
+                    credentials are valid. Not validated in the initial
+                    implementation — always true.
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Provider
+          type: string
+          jsonPath: .spec.provider
+        - name: URL
+          type: string
+          jsonPath: .spec.url
+          priority: 1
+        - name: Models
+          type: string
+          jsonPath: .spec.models[*].name
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

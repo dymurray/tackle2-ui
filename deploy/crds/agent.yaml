@@ -1,0 +1,186 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agents.konveyor.io
+spec:
+  group: konveyor.io
+  names:
+    kind: Agent
+    listKind: AgentList
+    plural: agents
+    singular: agent
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >
+            Agent is the composable execution unit. It binds SkillCards
+            and SkillCollections (capabilities), an LLMProvider with a
+            selected model, a container image (carrying the agent runtime
+            and language toolchains), and a prompt (standing instructions).
+
+            An Agent can be executed directly ("run this agent against
+            this application") or referenced from an AgentPlan phase.
+
+            At execution time, the Agent's prompt provides standing
+            instructions for how the agent operates. When used within an
+            AgentPlan, the phase instructions are joined with the Agent's
+            prompt to form the complete task.
+
+            The container image determines the agent runtime (goose,
+            opencode, etc.) and available language toolchains (JDK,
+            Maven, Go, etc.). Skills are mounted into the pod via
+            ImageVolumes or ConfigMaps depending on SkillCard type.
+
+            Subagent delegation: An Agent may reference other Agents as
+            subagents. Delegation is handled within the agent runtime
+            (e.g. goose sub-recipes, opencode task tool) — not by
+            creating additional pods.
+          required:
+            - spec
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - description
+                - containerImage
+                - llmProviderRef
+                - model
+              properties:
+                description:
+                  type: string
+                  description: >
+                    Human-readable description of this agent's purpose.
+                    Example: "Java EE to Quarkus migration specialist".
+                prompt:
+                  type: string
+                  description: >
+                    Standing instructions for the agent — how it should
+                    operate, its persona, its approach. This is joined
+                    with AgentPlan phase instructions at execution time.
+                    Example: "You are a Java migration specialist. Always
+                    run tests after changes. Commit only working code."
+                containerImage:
+                  type: string
+                  description: >
+                    Container image carrying the agent runtime and
+                    language toolchains. The image determines which agent
+                    runtime is used (goose, opencode, etc.) and what
+                    build/test tools are available (JDK, Maven, Go, etc.).
+                    Example: "quay.io/konveyor/addon-kai:latest"
+                llmProviderRef:
+                  type: object
+                  required:
+                    - name
+                  properties:
+                    name:
+                      type: string
+                      description: >
+                        Name of the LLMProvider CR in the same namespace.
+                  description: >
+                    Reference to the LLMProvider this agent uses.
+                model:
+                  type: string
+                  description: >
+                    Name of the model to use from the referenced
+                    LLMProvider. Must match one of the models declared
+                    in the provider's spec.models[].name.
+                skillCardRefs:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                    properties:
+                      name:
+                        type: string
+                        description: >
+                          Name of a SkillCard CR in the same namespace.
+                  description: >
+                    Individual SkillCards this agent has access to. Both
+                    skills (on-demand) and rules (always-loaded) are
+                    referenced here.
+                skillCollectionRefs:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                    properties:
+                      name:
+                        type: string
+                        description: >
+                          Name of a SkillCollection CR in the same
+                          namespace.
+                  description: >
+                    SkillCollections this agent has access to. Provides
+                    bulk access to groups of related skills.
+                subagentRefs:
+                  type: array
+                  items:
+                    type: object
+                    required:
+                      - name
+                    properties:
+                      name:
+                        type: string
+                        description: >
+                          Name of another Agent CR in the same namespace
+                          that this agent can delegate work to.
+                  description: >
+                    Other Agents this agent can delegate to as subagents.
+                    Delegation is handled within the agent runtime — the
+                    parent agent decides when to hand off based on the
+                    subagent's description. Subagents run in-process
+                    (same container, shared context), not as separate
+                    pods.
+            status:
+              type: object
+              properties:
+                ready:
+                  type: boolean
+                  description: >
+                    True when all referenced SkillCards, SkillCollections,
+                    and LLMProvider are ready, and the container image is
+                    pullable.
+                ruleContentSize:
+                  type: integer
+                  description: >
+                    Total size in bytes of all always-loaded rule content.
+                    Used for context budget validation against the
+                    selected model's context window.
+                contextBudgetOk:
+                  type: boolean
+                  description: >
+                    True when ruleContentSize fits within the selected
+                    model's context window. False triggers a warning
+                    that rules may exceed context capacity.
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Description
+          type: string
+          jsonPath: .spec.description
+          priority: 1
+        - name: Image
+          type: string
+          jsonPath: .spec.containerImage
+        - name: Model
+          type: string
+          jsonPath: .spec.model
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
