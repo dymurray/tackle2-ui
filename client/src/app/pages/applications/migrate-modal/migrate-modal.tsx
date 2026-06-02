@@ -22,11 +22,8 @@ import { createTaskgroup, submitTaskgroup } from "@app/api/rest";
 import { FilterSelectOptionProps } from "@app/components/FilterToolbar/FilterToolbar";
 import TypeaheadSelect from "@app/components/FilterToolbar/components/TypeaheadSelect";
 import { useNotifications } from "@app/components/NotificationsContext";
-import { mergePalletYamls } from "@app/pages/agent-recipes/components/pallet-utils";
 import { useFetchAgentPlans } from "@app/queries/agent-plans";
-import { useFetchAgentRecipes } from "@app/queries/agent-recipes";
 import { useFetchAgents } from "@app/queries/agents";
-import { useFetchIdentities } from "@app/queries/identities";
 
 export interface MigrateModalProps {
   applications: Array<{ id: number; name: string }>;
@@ -48,32 +45,34 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
   const { pushNotification } = useNotifications();
   const { agents } = useFetchAgents();
   const { agentPlans } = useFetchAgentPlans();
-  const { agentRecipes } = useFetchAgentRecipes();
-  const { identities } = useFetchIdentities();
-  const [selectedAgentId, setSelectedAgentId] = useState<string>("");
-  const [selectedPlanId, setSelectedPlanId] = useState<string>("");
+  const [selectedAgentName, setSelectedAgentName] = useState<string>("");
+  const [selectedPlanName, setSelectedPlanName] = useState<string>("");
   const [branch, setBranch] = useState<string>("");
   const [status, setStatus] = useState<SubmitStatus>({ phase: "idle" });
 
   const agentOptions: FilterSelectOptionProps[] = (agents || []).map((a) => ({
-    value: String(a.id),
-    label: `${a.name}${a.modelConfig?.model ? ` (${a.modelConfig.model})` : ""}`,
+    value: a.metadata.name,
+    label: `${a.metadata.name}${a.spec.model ? ` (${a.spec.model})` : ""}`,
   }));
 
   const planOptions: FilterSelectOptionProps[] = (agentPlans || []).map(
     (p) => ({
-      value: String(p.id),
-      label: p.name,
+      value: p.metadata.name,
+      label: p.metadata.name,
     })
   );
 
-  const selectedAgent = agents.find((a) => String(a.id) === selectedAgentId);
-  const selectedPlan = agentPlans.find((p) => String(p.id) === selectedPlanId);
+  const selectedAgent = agents.find(
+    (a) => a.metadata.name === selectedAgentName
+  );
+  const selectedPlan = agentPlans.find(
+    (p) => p.metadata.name === selectedPlanName
+  );
 
   const handleClose = () => {
     setStatus({ phase: "idle" });
-    setSelectedAgentId("");
-    setSelectedPlanId("");
+    setSelectedAgentName("");
+    setSelectedPlanName("");
     setBranch("");
     onClose();
   };
@@ -85,52 +84,24 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
     setStatus({ phase: "submitting" });
 
     try {
-      // Resolve the agent's recipes into a single merged pallet.yaml string.
-      // The addon contract (tackle2-addon-kai/cmd/addon/main.go) expects
-      // `data.agent.pallet.yaml` as one YAML doc that it writes verbatim to
-      // pallet.yaml — recipes are a UI-side abstraction, merged at submit time.
-      const recipeIds = selectedAgent.recipeIds ?? [];
-      const recipeYamls = recipeIds
-        .map((id) => agentRecipes.find((r) => r.id === id)?.yaml)
-        .filter((y): y is string => !!y && y.trim().length > 0);
-      const mergedYaml =
-        recipeYamls.length > 0 ? mergePalletYamls(recipeYamls) : "";
-
-      // The addon expects `modelConfig.api_key` as cleartext. The Agent
-      // resource only stores an Identity reference, so resolve the
-      // identity's secret here at submit time.
-      const identityId = selectedAgent.modelConfig?.identity?.id;
-      const resolvedIdentity = identityId
-        ? identities.find((i) => i.id === identityId)
-        : undefined;
-      const apiKey = resolvedIdentity?.key || resolvedIdentity?.password;
-      const resolvedModelConfig = selectedAgent.modelConfig
-        ? {
-            provider_type: selectedAgent.modelConfig.provider_type,
-            url: selectedAgent.modelConfig.url,
-            model: selectedAgent.modelConfig.model,
-            api_key: apiKey,
-          }
-        : undefined;
-
       const taskgroupPayload = {
-        name: `migration-${selectedAgent.name}-${Date.now()}`,
+        name: `migration-${selectedAgent.metadata.name}-${Date.now()}`,
         kind: "migration",
         data: {
           agent: {
-            name: selectedAgent.name,
-            description: selectedAgent.description,
-            pallet: mergedYaml ? { yaml: mergedYaml } : undefined,
-            modelConfig: resolvedModelConfig,
+            name: selectedAgent.metadata.name,
+            description: selectedAgent.spec.description,
+            model: selectedAgent.spec.model,
+            llmProvider: selectedAgent.spec.llmProviderRef?.name,
           },
           plan: {
-            name: selectedPlan.name,
-            markdown: selectedPlan.markdown,
+            name: selectedPlan.metadata.name,
+            description: selectedPlan.spec.description,
           },
           branch: trimmedBranch,
         },
         tasks: applications.map((app) => ({
-          name: `${selectedAgent.name}.${app.name}.migration`,
+          name: `${selectedAgent.metadata.name}.${app.name}.migration`,
           data: { branch: trimmedBranch },
           application: { id: app.id, name: app.name },
         })),
@@ -161,8 +132,6 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
   }, [
     selectedAgent,
     selectedPlan,
-    agentRecipes,
-    identities,
     trimmedBranch,
     applications,
     pushNotification,
@@ -211,7 +180,6 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
             ]
       }
     >
-      {/* Success state */}
       {status.phase === "success" && (
         <Alert
           variant="success"
@@ -230,19 +198,10 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
             <Text component="small">
               Name: <code>{status.taskgroupName}</code>
             </Text>
-            <Text component="small">
-              Kind: <code>migration</code> | State: <strong>Ready</strong>
-            </Text>
-            <Text component="small">
-              {applications.length} application(s) queued for migration using
-              agent &quot;{selectedAgent?.name}&quot; and plan &quot;
-              {selectedPlan?.name}&quot;.
-            </Text>
           </TextContent>
         </Alert>
       )}
 
-      {/* Error state */}
       {status.phase === "error" && (
         <Alert
           variant="danger"
@@ -261,7 +220,6 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
         </Alert>
       )}
 
-      {/* Submitting state */}
       {status.phase === "submitting" && (
         <Alert
           variant="info"
@@ -273,7 +231,6 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
         </Alert>
       )}
 
-      {/* Form — only show when idle or error */}
       {(status.phase === "idle" || status.phase === "error") && (
         <>
           <TextContent>
@@ -297,9 +254,11 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
                 toggleId="agent-select-toggle"
                 toggleAriaLabel="Agent select"
                 ariaLabel="agent"
-                value={selectedAgentId}
+                value={selectedAgentName}
                 options={agentOptions}
-                onSelect={(selection) => setSelectedAgentId(selection ?? "")}
+                onSelect={(selection) =>
+                  setSelectedAgentName(selection ?? "")
+                }
               />
             </FormGroup>
             <FormGroup label="Plan" fieldId="plan-select" isRequired>
@@ -308,9 +267,11 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
                 toggleId="plan-select-toggle"
                 toggleAriaLabel="Agent plan select"
                 ariaLabel="plan"
-                value={selectedPlanId}
+                value={selectedPlanName}
                 options={planOptions}
-                onSelect={(selection) => setSelectedPlanId(selection ?? "")}
+                onSelect={(selection) =>
+                  setSelectedPlanName(selection ?? "")
+                }
               />
             </FormGroup>
             <FormGroup label="Branch" fieldId="branch-input" isRequired>
@@ -328,15 +289,15 @@ export const MigrateModal: React.FC<MigrateModalProps> = ({
             <TextContent style={{ marginTop: 16 }}>
               {selectedAgent && (
                 <Text component="small">
-                  <strong>Agent:</strong> {selectedAgent.name}
-                  {selectedAgent.modelConfig?.model
-                    ? ` — model: ${selectedAgent.modelConfig.model}`
+                  <strong>Agent:</strong> {selectedAgent.metadata.name}
+                  {selectedAgent.spec.model
+                    ? ` — model: ${selectedAgent.spec.model}`
                     : ""}
                 </Text>
               )}
               {selectedPlan && (
                 <Text component="small">
-                  <strong>Plan:</strong> {selectedPlan.name}
+                  <strong>Plan:</strong> {selectedPlan.metadata.name}
                 </Text>
               )}
             </TextContent>

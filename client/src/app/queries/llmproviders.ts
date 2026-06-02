@@ -2,30 +2,30 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 
 import { DEFAULT_REFETCH_INTERVAL } from "@app/Constants";
-import type { AgentPlan } from "@app/api/k8s-models";
+import type { LLMProvider } from "@app/api/k8s-models";
 import {
-  createAgentPlan,
-  deleteAgentPlan,
-  getAgentPlan,
-  getAgentPlans,
-  updateAgentPlan,
+  createLLMProvider,
+  deleteLLMProvider,
+  getLLMProvider,
+  getLLMProviders,
+  updateLLMProvider,
 } from "@app/api/rest";
 
-export const AGENT_PLANS_QUERY_KEY = "agentPlans";
-export const AGENT_PLAN_QUERY_KEY = "agentPlan";
+export const LLMPROVIDERS_QUERY_KEY = "llmProviders";
+export const LLMPROVIDER_QUERY_KEY = "llmProvider";
 
-export const useFetchAgentPlans = (
+export const useFetchLLMProviders = (
   refetchInterval: number | false = DEFAULT_REFETCH_INTERVAL
 ) => {
   const { isLoading, isSuccess, error, refetch, data } = useQuery({
-    queryKey: [AGENT_PLANS_QUERY_KEY],
-    queryFn: getAgentPlans,
+    queryKey: [LLMPROVIDERS_QUERY_KEY],
+    queryFn: getLLMProviders,
     onError: (error: AxiosError) => console.log(error),
     refetchInterval,
   });
 
   return {
-    agentPlans: data || [],
+    llmProviders: data || [],
     isLoading,
     isSuccess,
     fetchError: error,
@@ -33,71 +33,71 @@ export const useFetchAgentPlans = (
   };
 };
 
-export const useFetchAgentPlanByName = (name?: string) => {
+export const useFetchLLMProviderByName = (name?: string) => {
   const { data, isLoading, error } = useQuery({
-    queryKey: [AGENT_PLAN_QUERY_KEY, name],
+    queryKey: [LLMPROVIDER_QUERY_KEY, name],
     queryFn: () =>
-      name === undefined ? Promise.resolve(undefined) : getAgentPlan(name),
+      name === undefined ? Promise.resolve(undefined) : getLLMProvider(name),
     onError: (error: AxiosError) => console.log("error, ", error),
     enabled: name !== undefined,
   });
 
   return {
-    agentPlan: data,
+    llmProvider: data,
     isLoading,
     fetchError: error,
   };
 };
 
-export const useCreateAgentPlanMutation = (
+export const useCreateLLMProviderMutation = (
   onSuccess: () => void,
   onError: (err: AxiosError) => void
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: createAgentPlan,
+    mutationFn: createLLMProvider,
     onSuccess: () => {
       onSuccess();
-      queryClient.invalidateQueries({ queryKey: [AGENT_PLANS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [LLMPROVIDERS_QUERY_KEY] });
     },
     onError: onError,
   });
 };
 
-export const useUpdateAgentPlanMutation = (
+export const useUpdateLLMProviderMutation = (
   onSuccess: (name: string) => void,
   onError: (err: AxiosError) => void
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: updateAgentPlan,
+    mutationFn: updateLLMProvider,
     onSuccess: (result) => {
       const name = result.metadata.name;
       onSuccess(name);
-      queryClient.invalidateQueries({ queryKey: [AGENT_PLANS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [LLMPROVIDERS_QUERY_KEY] });
       queryClient.invalidateQueries({
-        queryKey: [AGENT_PLAN_QUERY_KEY, name],
+        queryKey: [LLMPROVIDER_QUERY_KEY, name],
       });
     },
     onError: onError,
   });
 };
 
-export const useDeleteAgentPlanMutation = (
-  onSuccess: (plan: AgentPlan) => void,
+export const useDeleteLLMProviderMutation = (
+  onSuccess: (p: LLMProvider) => void,
   onError: (err: AxiosError) => void
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (plan: AgentPlan) => deleteAgentPlan(plan.metadata.name),
-    onSuccess: (_, plan) => {
-      onSuccess(plan);
-      queryClient.invalidateQueries({ queryKey: [AGENT_PLANS_QUERY_KEY] });
+    mutationFn: (p: LLMProvider) => deleteLLMProvider(p.metadata.name),
+    onSuccess: (_, p) => {
+      onSuccess(p);
+      queryClient.invalidateQueries({ queryKey: [LLMPROVIDERS_QUERY_KEY] });
       queryClient.invalidateQueries({
-        queryKey: [AGENT_PLAN_QUERY_KEY, plan.metadata.name],
+        queryKey: [LLMPROVIDER_QUERY_KEY, p.metadata.name],
       });
     },
     onError: onError,

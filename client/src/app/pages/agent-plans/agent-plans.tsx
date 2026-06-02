@@ -1,7 +1,5 @@
 import { FC, useCallback, useState } from "react";
 import { AxiosError } from "axios";
-import { useTranslation } from "react-i18next";
-import { useHistory } from "react-router-dom";
 import {
   Button,
   ButtonVariant,
@@ -9,6 +7,7 @@ import {
   EmptyStateBody,
   EmptyStateHeader,
   EmptyStateIcon,
+  Label,
   Modal,
   PageSection,
   PageSectionVariants,
@@ -23,20 +22,11 @@ import {
 import { CubesIcon, PencilAltIcon, TrashIcon } from "@patternfly/react-icons";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@patternfly/react-table";
 
-import { TablePersistenceKeyPrefix } from "@app/Constants";
-import { AgentPlan } from "@app/api/models";
+import type { AgentPlan } from "@app/api/k8s-models";
 import { AppPlaceholder } from "@app/components/AppPlaceholder";
 import { ConditionalRender } from "@app/components/ConditionalRender";
 import { ConfirmDialog } from "@app/components/ConfirmDialog";
-import { FilterToolbar, FilterType } from "@app/components/FilterToolbar";
 import { useNotifications } from "@app/components/NotificationsContext";
-import { SimplePagination } from "@app/components/SimplePagination";
-import {
-  ConditionalTableBody,
-  TableHeaderContentWithControls,
-  TableRowContentWithControls,
-} from "@app/components/TableControls";
-import { useLocalTableControls } from "@app/hooks/table-controls";
 import {
   useDeleteAgentPlanMutation,
   useFetchAgentPlans,
@@ -46,20 +36,13 @@ import { getAxiosErrorMessage } from "@app/utils/utils";
 import AgentPlanDetailDrawer from "./components/agent-plan-detail-drawer";
 import AgentPlanForm from "./components/agent-plan-form";
 
-const previewMarkdown = (markdown: string): string => {
-  if (!markdown) return "—";
-  const collapsed = markdown.replace(/\s+/g, " ").trim();
-  return collapsed.length > 80 ? `${collapsed.slice(0, 80)}…` : collapsed;
-};
-
 const AgentPlans: FC = () => {
-  const { t } = useTranslation();
-  const history = useHistory();
   const { pushNotification } = useNotifications();
 
-  const [openCreatePlan, setOpenCreatePlan] = useState<boolean>(false);
+  const [openCreatePlan, setOpenCreatePlan] = useState(false);
   const [planToEdit, setPlanToEdit] = useState<AgentPlan | null>(null);
   const [planToDelete, setPlanToDelete] = useState<AgentPlan | null>(null);
+  const [activePlan, setActivePlan] = useState<AgentPlan | null>(null);
 
   const { agentPlans, isLoading, fetchError } = useFetchAgentPlans();
 
@@ -73,85 +56,14 @@ const AgentPlans: FC = () => {
     [pushNotification]
   );
 
-  const onDeleteSuccess = useCallback(
-    (planDeleted: AgentPlan) => {
-      pushNotification({
-        title: `Successfully deleted agent plan "${planDeleted.name}"`,
-        variant: "success",
-      });
-    },
-    [pushNotification]
-  );
-
   const { mutate: deletePlan } = useDeleteAgentPlanMutation(
-    onDeleteSuccess,
+    (plan) =>
+      pushNotification({
+        title: `Deleted agent plan "${plan.metadata.name}"`,
+        variant: "success",
+      }),
     onError
   );
-
-  const getSortValues = useCallback(
-    (plan: AgentPlan) => ({
-      name: plan.name ?? "",
-    }),
-    []
-  );
-
-  const tableControls = useLocalTableControls({
-    tableName: "agent-plans-table",
-    persistTo: "urlParams",
-    persistenceKeyPrefix: TablePersistenceKeyPrefix.agentPlans,
-    idProperty: "id",
-    dataNameProperty: "name",
-    items: agentPlans || [],
-    isLoading: isLoading,
-    hasActionsColumn: true,
-    columnNames: {
-      name: t("terms.name"),
-      preview: "Preview",
-    },
-    isFilterEnabled: true,
-    isSortEnabled: true,
-    isPaginationEnabled: true,
-    isActiveItemEnabled: true,
-    filterCategories: [
-      {
-        categoryKey: "name",
-        title: t("terms.name"),
-        type: FilterType.search,
-        placeholderText:
-          t("actions.filterBy", {
-            what: t("terms.name").toLowerCase(),
-          }) + "...",
-        getItemValue: (plan: AgentPlan) => plan?.name ?? "",
-      },
-    ],
-    sortableColumns: ["name"],
-    getSortValues,
-    initialSort: { columnKey: "name", direction: "asc" },
-  });
-
-  const {
-    currentPageItems,
-    numRenderedColumns,
-    propHelpers: {
-      toolbarProps,
-      filterToolbarProps,
-      paginationToolbarItemProps,
-      paginationProps,
-      tableProps,
-      getThProps,
-      getTrProps,
-      getTdProps,
-    },
-    activeItemDerivedState: { activeItem, clearActiveItem },
-  } = tableControls;
-
-  const clearFilters = useCallback(() => {
-    const currentPath = history.location.pathname;
-    const newSearch = new URLSearchParams(history.location.search);
-    newSearch.delete("filters");
-    history.push(`${currentPath}?${newSearch.toString()}`);
-    filterToolbarProps.setFilterValues({});
-  }, [history, filterToolbarProps]);
 
   return (
     <>
@@ -162,7 +74,7 @@ const AgentPlans: FC = () => {
       </PageSection>
       <PageSection>
         <ConditionalRender
-          when={isLoading && !(agentPlans || fetchError)}
+          when={isLoading && !(agentPlans.length || fetchError)}
           then={<AppPlaceholder />}
         >
           <div
@@ -170,9 +82,8 @@ const AgentPlans: FC = () => {
               backgroundColor: "var(--pf-v5-global--BackgroundColor--100)",
             }}
           >
-            <Toolbar {...toolbarProps} clearAllFilters={clearFilters}>
+            <Toolbar>
               <ToolbarContent>
-                <FilterToolbar {...filterToolbarProps} />
                 <ToolbarGroup variant="button-group">
                   <ToolbarItem>
                     <Button
@@ -186,120 +97,112 @@ const AgentPlans: FC = () => {
                     </Button>
                   </ToolbarItem>
                 </ToolbarGroup>
-                <ToolbarItem {...paginationToolbarItemProps}>
-                  <SimplePagination
-                    idPrefix="agent-plans-table"
-                    isTop
-                    paginationProps={paginationProps}
-                  />
-                </ToolbarItem>
               </ToolbarContent>
             </Toolbar>
 
-            <Table
-              {...tableProps}
-              id="agent-plans-table"
-              aria-label="agent plans table"
-            >
+            <Table aria-label="Agent plans table">
               <Thead>
                 <Tr>
-                  <TableHeaderContentWithControls {...tableControls}>
-                    <Th {...getThProps({ columnKey: "name" })} />
-                    <Th {...getThProps({ columnKey: "preview" })} />
-                  </TableHeaderContentWithControls>
+                  <Th>Name</Th>
+                  <Th>Description</Th>
+                  <Th>Stages</Th>
+                  <Th>Phases</Th>
+                  <Th>Ready</Th>
+                  <Th />
                 </Tr>
               </Thead>
-              <ConditionalTableBody
-                isLoading={isLoading}
-                isError={!!fetchError}
-                isNoData={currentPageItems.length === 0}
-                noDataEmptyState={
-                  <EmptyState variant="sm">
-                    <EmptyStateHeader
-                      titleText="No agent plans configured"
-                      headingLevel="h2"
-                      icon={<EmptyStateIcon icon={CubesIcon} />}
-                    />
-                    <EmptyStateBody>
-                      Create an agent plan by giving it a name and pasting
-                      markdown that describes the steps the agent should follow.
-                    </EmptyStateBody>
-                  </EmptyState>
-                }
-                numRenderedColumns={numRenderedColumns}
-              >
-                <Tbody>
-                  {currentPageItems?.map((plan, rowIndex) => (
-                    <Tr key={plan.id} {...getTrProps({ item: plan })}>
-                      <TableRowContentWithControls
-                        {...tableControls}
-                        item={plan}
-                        rowIndex={rowIndex}
+              <Tbody>
+                {agentPlans.length === 0 ? (
+                  <Tr>
+                    <Td colSpan={6}>
+                      <EmptyState variant="sm">
+                        <EmptyStateHeader
+                          titleText="No agent plans configured"
+                          headingLevel="h2"
+                          icon={<EmptyStateIcon icon={CubesIcon} />}
+                        />
+                        <EmptyStateBody>
+                          Create an AgentPlan to define a playbook with stages
+                          and phases for agentic work.
+                        </EmptyStateBody>
+                      </EmptyState>
+                    </Td>
+                  </Tr>
+                ) : (
+                  agentPlans.map((plan) => {
+                    const stageCount =
+                      plan.status?.stageCount ?? plan.spec.stages?.length ?? 0;
+                    const phaseCount =
+                      plan.status?.phaseCount ??
+                      plan.spec.stages?.reduce(
+                        (sum, s) => sum + (s.phases?.length ?? 0),
+                        0
+                      ) ??
+                      0;
+                    return (
+                      <Tr
+                        key={plan.metadata.name}
+                        isClickable
+                        onRowClick={() => setActivePlan(plan)}
                       >
-                        <Td
-                          {...getTdProps({ columnKey: "name" })}
-                          modifier="truncate"
-                        >
-                          {plan.name}
+                        <Td>{plan.metadata.name}</Td>
+                        <Td modifier="truncate">{plan.spec.description}</Td>
+                        <Td>{stageCount}</Td>
+                        <Td>{phaseCount}</Td>
+                        <Td>
+                          {plan.status?.ready ? (
+                            <Label color="green">Ready</Label>
+                          ) : (
+                            <Label color="grey">Pending</Label>
+                          )}
                         </Td>
-                        <Td
-                          {...getTdProps({ columnKey: "preview" })}
-                          modifier="truncate"
-                        >
-                          {previewMarkdown(plan.markdown)}
-                        </Td>
-
-                        <Td isActionCell id="pencil-action">
-                          <Tooltip content={t("actions.edit")}>
+                        <Td isActionCell>
+                          <Tooltip content="Edit">
                             <Button
                               variant="plain"
                               icon={<PencilAltIcon />}
-                              onClick={() => setPlanToEdit(plan)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPlanToEdit(plan);
+                              }}
                             />
                           </Tooltip>
-                        </Td>
-
-                        <Td isActionCell id="delete-action">
-                          <Tooltip content={t("actions.delete")}>
+                          <Tooltip content="Delete">
                             <Button
                               variant="plain"
                               icon={<TrashIcon />}
-                              onClick={() => setPlanToDelete(plan)}
-                              isDanger={true}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setPlanToDelete(plan);
+                              }}
+                              isDanger
                             />
                           </Tooltip>
                         </Td>
-                      </TableRowContentWithControls>
-                    </Tr>
-                  ))}
-                </Tbody>
-              </ConditionalTableBody>
+                      </Tr>
+                    );
+                  })
+                )}
+              </Tbody>
             </Table>
-            <SimplePagination
-              idPrefix="agent-plans-table"
-              isTop={false}
-              paginationProps={paginationProps}
-            />
           </div>
         </ConditionalRender>
       </PageSection>
 
-      <AgentPlanDetailDrawer plan={activeItem} onCloseClick={clearActiveItem} />
+      <AgentPlanDetailDrawer
+        plan={activePlan}
+        onCloseClick={() => setActivePlan(null)}
+      />
 
-      {/* Create modal */}
       <Modal
         title="New Agent Plan"
         variant="medium"
         isOpen={openCreatePlan}
         onClose={() => setOpenCreatePlan(false)}
       >
-        <AgentPlanForm
-          key={openCreatePlan ? 1 : 0}
-          onClose={() => setOpenCreatePlan(false)}
-        />
+        <AgentPlanForm onClose={() => setOpenCreatePlan(false)} />
       </Modal>
 
-      {/* Edit modal */}
       <Modal
         title="Edit Agent Plan"
         variant="medium"
@@ -307,21 +210,20 @@ const AgentPlans: FC = () => {
         onClose={() => setPlanToEdit(null)}
       >
         <AgentPlanForm
-          key={planToEdit?.id ?? -1}
+          key={planToEdit?.metadata.name ?? ""}
           plan={planToEdit}
           onClose={() => setPlanToEdit(null)}
         />
       </Modal>
 
-      {/* Delete confirm modal */}
       <ConfirmDialog
-        title={`Delete agent plan "${planToDelete?.name ?? ""}"?`}
+        title={`Delete agent plan "${planToDelete?.metadata.name ?? ""}"?`}
         isOpen={!!planToDelete}
         titleIconVariant="warning"
-        message={t("dialog.message.delete")}
+        message="This agent plan will be permanently deleted."
         confirmBtnVariant={ButtonVariant.danger}
-        confirmBtnLabel={t("actions.delete")}
-        cancelBtnLabel={t("actions.cancel")}
+        confirmBtnLabel="Delete"
+        cancelBtnLabel="Cancel"
         onCancel={() => setPlanToDelete(null)}
         onClose={() => setPlanToDelete(null)}
         onConfirm={() => {

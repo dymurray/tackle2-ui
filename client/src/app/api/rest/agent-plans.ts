@@ -1,21 +1,26 @@
-import axios from "axios";
+import type { AgentPlan } from "../k8s-models";
+import {
+  listResource,
+  getResource,
+  createResource,
+  updateResource,
+  deleteResource,
+} from "../k8s";
 
-import { AgentPlan, New } from "../models";
-import { hub } from "../rest";
-
-const AGENT_PLANS = hub`/agent-plans`;
+const PLURAL = "agentplans";
 
 export const getAgentPlans = (): Promise<AgentPlan[]> =>
-  axios.get<AgentPlan[]>(AGENT_PLANS).then(({ data }) => data);
+  listResource<AgentPlan>(PLURAL);
 
-export const getAgentPlanById = (id: number | string): Promise<AgentPlan> =>
-  axios.get<AgentPlan>(`${AGENT_PLANS}/${id}`).then(({ data }) => data);
+export const getAgentPlan = (name: string): Promise<AgentPlan> =>
+  getResource<AgentPlan>(PLURAL, name);
 
-export const createAgentPlan = (plan: New<AgentPlan>): Promise<AgentPlan> =>
-  axios.post<AgentPlan>(AGENT_PLANS, plan).then(({ data }) => data);
+export const createAgentPlan = (
+  resource: Omit<AgentPlan, "status">
+): Promise<AgentPlan> => createResource<AgentPlan>(PLURAL, resource);
 
-export const updateAgentPlan = (plan: AgentPlan): Promise<void> =>
-  axios.put<void>(`${AGENT_PLANS}/${plan.id}`, plan).then(() => undefined);
+export const updateAgentPlan = (resource: AgentPlan): Promise<AgentPlan> =>
+  updateResource<AgentPlan>(PLURAL, resource);
 
-export const deleteAgentPlan = (id: number): Promise<void> =>
-  axios.delete<void>(`${AGENT_PLANS}/${id}`).then(() => undefined);
+export const deleteAgentPlan = (name: string): Promise<void> =>
+  deleteResource(PLURAL, name);

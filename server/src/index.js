@@ -27,11 +27,12 @@ const port = parseInt(KONVEYOR_ENV.PORT, 10) || developmentMode ? 9000 : 8080;
 const app = express();
 app.set("x-powered-by", false);
 
-// Setup proxies for auth and hub
+// Setup proxies for auth, hub, and k8s API
 app.use(createProxyMiddleware(proxies.auth));
 app.use(createProxyMiddleware(proxies.hub));
 app.use(createProxyMiddleware(proxies.kai));
 app.use(createProxyMiddleware(proxies.kaiLLMProxy));
+app.use(createProxyMiddleware(proxies.k8s));
 
 // In development, proxy to the dev server, otherwise serve the client/dist content
 if (developmentMode) {

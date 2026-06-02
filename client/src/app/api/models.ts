@@ -1019,40 +1019,6 @@ export interface Generator {
   /** all profiles currently referencing this generator */ profiles?: Ref[];
 }
 
-export interface AgentPallet {
-  yaml?: string;
-  archetype?: Ref;
-  skills?: string[];
-}
-
-export interface AgentModelConfig {
-  provider_type?: string;
-  url?: string;
-  model?: string;
-  identity?: Ref;
-}
-
-export interface AgentRecipe {
-  id: number;
-  name: string;
-  description?: string;
-  yaml: string;
-}
-
-export interface AgentConfig {
-  id: number;
-  name: string;
-  description?: string;
-  recipeIds?: number[];
-  modelConfig?: AgentModelConfig;
-}
-
-export interface AgentPlan {
-  id: number;
-  name: string;
-  markdown: string;
-}
-
 // Could use https://www.npmjs.com/package/@types/json-schema in future if needed
 export interface JsonSchemaObject {
   $schema?: "https://json-schema.org/draft/2020-12/schema" | string;

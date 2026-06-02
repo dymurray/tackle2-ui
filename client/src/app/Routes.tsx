@@ -90,9 +90,13 @@ const AssetGenerators = lazy(
   () => import("./pages/asset-generators/asset-generators")
 );
 
+const SkillCards = lazy(() => import("./pages/skill-cards/skill-cards"));
+const SkillCollections = lazy(
+  () => import("./pages/skill-collections/skill-collections")
+);
+const LLMProviders = lazy(() => import("./pages/llm-providers/llm-providers"));
 const Agents = lazy(() => import("./pages/agents/agents"));
 const AgentPlans = lazy(() => import("./pages/agent-plans/agent-plans"));
-const AgentRecipes = lazy(() => import("./pages/agent-recipes/agent-recipes"));
 
 export interface IRoute<T> {
   path: T;
@@ -330,6 +334,21 @@ export const administrationRoutes: IRoute<AdminPathValues>[] = [
     exact: false,
   },
   {
+    comp: SkillCards,
+    path: Paths.skillCards,
+    exact: false,
+  },
+  {
+    comp: SkillCollections,
+    path: Paths.skillCollections,
+    exact: false,
+  },
+  {
+    comp: LLMProviders,
+    path: Paths.llmProviders,
+    exact: false,
+  },
+  {
     comp: Agents,
     path: Paths.agents,
     exact: false,
@@ -337,11 +356,6 @@ export const administrationRoutes: IRoute<AdminPathValues>[] = [
   {
     comp: AgentPlans,
     path: Paths.agentPlans,
-    exact: false,
-  },
-  {
-    comp: AgentRecipes,
-    path: Paths.agentRecipes,
     exact: false,
   },
 ];

@@ -2,30 +2,30 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 
 import { DEFAULT_REFETCH_INTERVAL } from "@app/Constants";
-import type { AgentPlan } from "@app/api/k8s-models";
+import type { SkillCard } from "@app/api/k8s-models";
 import {
-  createAgentPlan,
-  deleteAgentPlan,
-  getAgentPlan,
-  getAgentPlans,
-  updateAgentPlan,
+  createSkillCard,
+  deleteSkillCard,
+  getSkillCard,
+  getSkillCards,
+  updateSkillCard,
 } from "@app/api/rest";
 
-export const AGENT_PLANS_QUERY_KEY = "agentPlans";
-export const AGENT_PLAN_QUERY_KEY = "agentPlan";
+export const SKILLCARDS_QUERY_KEY = "skillCards";
+export const SKILLCARD_QUERY_KEY = "skillCard";
 
-export const useFetchAgentPlans = (
+export const useFetchSkillCards = (
   refetchInterval: number | false = DEFAULT_REFETCH_INTERVAL
 ) => {
   const { isLoading, isSuccess, error, refetch, data } = useQuery({
-    queryKey: [AGENT_PLANS_QUERY_KEY],
-    queryFn: getAgentPlans,
+    queryKey: [SKILLCARDS_QUERY_KEY],
+    queryFn: getSkillCards,
     onError: (error: AxiosError) => console.log(error),
     refetchInterval,
   });
 
   return {
-    agentPlans: data || [],
+    skillCards: data || [],
     isLoading,
     isSuccess,
     fetchError: error,
@@ -33,71 +33,69 @@ export const useFetchAgentPlans = (
   };
 };
 
-export const useFetchAgentPlanByName = (name?: string) => {
+export const useFetchSkillCardByName = (name?: string) => {
   const { data, isLoading, error } = useQuery({
-    queryKey: [AGENT_PLAN_QUERY_KEY, name],
+    queryKey: [SKILLCARD_QUERY_KEY, name],
     queryFn: () =>
-      name === undefined ? Promise.resolve(undefined) : getAgentPlan(name),
+      name === undefined ? Promise.resolve(undefined) : getSkillCard(name),
     onError: (error: AxiosError) => console.log("error, ", error),
     enabled: name !== undefined,
   });
 
   return {
-    agentPlan: data,
+    skillCard: data,
     isLoading,
     fetchError: error,
   };
 };
 
-export const useCreateAgentPlanMutation = (
+export const useCreateSkillCardMutation = (
   onSuccess: () => void,
   onError: (err: AxiosError) => void
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: createAgentPlan,
+    mutationFn: createSkillCard,
     onSuccess: () => {
       onSuccess();
-      queryClient.invalidateQueries({ queryKey: [AGENT_PLANS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [SKILLCARDS_QUERY_KEY] });
     },
     onError: onError,
   });
 };
 
-export const useUpdateAgentPlanMutation = (
+export const useUpdateSkillCardMutation = (
   onSuccess: (name: string) => void,
   onError: (err: AxiosError) => void
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: updateAgentPlan,
+    mutationFn: updateSkillCard,
     onSuccess: (result) => {
       const name = result.metadata.name;
       onSuccess(name);
-      queryClient.invalidateQueries({ queryKey: [AGENT_PLANS_QUERY_KEY] });
-      queryClient.invalidateQueries({
-        queryKey: [AGENT_PLAN_QUERY_KEY, name],
-      });
+      queryClient.invalidateQueries({ queryKey: [SKILLCARDS_QUERY_KEY] });
+      queryClient.invalidateQueries({ queryKey: [SKILLCARD_QUERY_KEY, name] });
     },
     onError: onError,
   });
 };
 
-export const useDeleteAgentPlanMutation = (
-  onSuccess: (plan: AgentPlan) => void,
+export const useDeleteSkillCardMutation = (
+  onSuccess: (sc: SkillCard) => void,
   onError: (err: AxiosError) => void
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (plan: AgentPlan) => deleteAgentPlan(plan.metadata.name),
-    onSuccess: (_, plan) => {
-      onSuccess(plan);
-      queryClient.invalidateQueries({ queryKey: [AGENT_PLANS_QUERY_KEY] });
+    mutationFn: (sc: SkillCard) => deleteSkillCard(sc.metadata.name),
+    onSuccess: (_, sc) => {
+      onSuccess(sc);
+      queryClient.invalidateQueries({ queryKey: [SKILLCARDS_QUERY_KEY] });
       queryClient.invalidateQueries({
-        queryKey: [AGENT_PLAN_QUERY_KEY, plan.metadata.name],
+        queryKey: [SKILLCARD_QUERY_KEY, sc.metadata.name],
       });
     },
     onError: onError,

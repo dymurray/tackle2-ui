@@ -1,5 +1,5 @@
-import { useMemo } from "react";
 import * as React from "react";
+import { useMemo } from "react";
 import { yupResolver } from "@hookform/resolvers/yup";
 import { AxiosError } from "axios";
 import { FormProvider, useForm } from "react-hook-form";
@@ -9,46 +9,35 @@ import {
   ActionGroup,
   Button,
   ButtonVariant,
-  Checkbox,
-  ExpandableSection,
   Form,
-  FormGroup,
-  Text,
-  TextContent,
-  Title,
 } from "@patternfly/react-core";
 
-import type { AgentConfig, New } from "@app/api/models";
-import { AppPlaceholder } from "@app/components/AppPlaceholder";
+import type { Agent } from "@app/api/k8s-models";
 import { ConditionalRender } from "@app/components/ConditionalRender";
-import SimpleSelect from "@app/components/FilterToolbar/components/SimpleSelect";
+import { AppPlaceholder } from "@app/components/AppPlaceholder";
 import {
-  HookFormPFGroupController,
   HookFormPFTextInput,
+  HookFormPFTextArea,
 } from "@app/components/HookFormPFFields";
 import { NotificationsContext } from "@app/components/NotificationsContext";
-import { useFetchAgentRecipes } from "@app/queries/agent-recipes";
 import {
   useCreateAgentMutation,
-  useFetchAgents,
   useUpdateAgentMutation,
+  useFetchAgents,
 } from "@app/queries/agents";
-import { useFetchIdentities } from "@app/queries/identities";
-import { duplicateNameCheck, getAxiosErrorMessage } from "@app/utils/utils";
+import { getAxiosErrorMessage } from "@app/utils/utils";
 
-export interface AgentFormValues {
+interface AgentFormValues {
   name: string;
-  description?: string;
-  recipeIds: number[];
-  modelProviderType?: string;
-  modelUrl?: string;
-  modelName?: string;
-  // Stored as the identity id; "" means no identity selected.
-  modelIdentityId?: string;
+  description: string;
+  prompt: string;
+  containerImage: string;
+  model: string;
+  llmProviderRef: string;
 }
 
 export interface AgentFormProps {
-  agent?: AgentConfig | null;
+  agent?: Agent | null;
   onClose: () => void;
 }
 
@@ -66,9 +55,9 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
   onClose,
 }) => {
   const { t } = useTranslation();
-
-  const { existingAgents, recipes, identities, createAgent, updateAgent } =
-    useAgentFormData({ onActionSuccess: onClose });
+  const { existingAgents, createAgent, updateAgent } = useAgentFormData({
+    onActionSuccess: onClose,
+  });
 
   const validationSchema = useMemo(
     () =>
@@ -78,33 +67,21 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
           .trim()
           .required(t("validation.required"))
           .min(3, t("validation.minLength", { length: 3 }))
-          .max(120, t("validation.maxLength", { length: 120 }))
-          .test(
-            "Duplicate name",
-            t("validation.duplicateName", { type: "agent" }),
-            (value) =>
-              existingAgents
-                ? duplicateNameCheck(existingAgents, agent, value ?? "")
-                : false
+          .max(63, "Must be 63 characters or less")
+          .matches(
+            /^[a-z0-9][a-z0-9-]*[a-z0-9]$/,
+            "Must be lowercase, alphanumeric, may contain hyphens"
+          )
+          .test("Duplicate name", "An agent with this name already exists", (value) =>
+            agent
+              ? true
+              : !existingAgents.some((a) => a.metadata.name === value)
           ),
-        description: yup
-          .string()
-          .trim()
-          .max(250, t("validation.maxLength", { length: 250 })),
-        recipeIds: yup.array().of(yup.number().required()).default([]),
-        modelProviderType: yup
-          .string()
-          .trim()
-          .max(60, t("validation.maxLength", { length: 60 })),
-        modelUrl: yup
-          .string()
-          .trim()
-          .max(500, t("validation.maxLength", { length: 500 })),
-        modelName: yup
-          .string()
-          .trim()
-          .max(120, t("validation.maxLength", { length: 120 })),
-        modelIdentityId: yup.string(),
+        description: yup.string().trim().required(t("validation.required")),
+        prompt: yup.string().trim(),
+        containerImage: yup.string().trim(),
+        model: yup.string().trim(),
+        llmProviderRef: yup.string().trim(),
       }),
     [t, existingAgents, agent]
   );
@@ -115,22 +92,18 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
         ? {
             name: "",
             description: "",
-            recipeIds: [],
-            modelProviderType: "",
-            modelUrl: "",
-            modelName: "",
-            modelIdentityId: "",
+            prompt: "",
+            containerImage: "",
+            model: "",
+            llmProviderRef: "",
           }
         : {
-            name: agent.name,
-            description: agent.description || "",
-            recipeIds: agent.recipeIds ?? [],
-            modelProviderType: agent.modelConfig?.provider_type || "",
-            modelUrl: agent.modelConfig?.url || "",
-            modelName: agent.modelConfig?.model || "",
-            modelIdentityId: agent.modelConfig?.identity?.id
-              ? String(agent.modelConfig.identity.id)
-              : "",
+            name: agent.metadata.name,
+            description: agent.spec.description || "",
+            prompt: agent.spec.prompt || "",
+            containerImage: agent.spec.containerImage || "",
+            model: agent.spec.model || "",
+            llmProviderRef: agent.spec.llmProviderRef?.name || "",
           },
     [agent]
   );
@@ -148,41 +121,36 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
   } = formMethods;
 
   const onValidSubmit = (values: AgentFormValues) => {
-    const providerType = values.modelProviderType?.trim();
-    const url = values.modelUrl?.trim();
-    const modelName = values.modelName?.trim();
-    const identityId = values.modelIdentityId
-      ? Number(values.modelIdentityId)
-      : undefined;
-    const identity =
-      identityId !== undefined
-        ? identities.find((i) => i.id === identityId)
-        : undefined;
-    const hasModelConfig = providerType || url || modelName || identity;
-
-    const payload: New<AgentConfig> = {
-      name: values.name.trim(),
-      description: values.description?.trim() || undefined,
-      recipeIds: values.recipeIds.length > 0 ? values.recipeIds : undefined,
-      modelConfig: hasModelConfig
-        ? {
-            provider_type: providerType || undefined,
-            url: url || undefined,
-            model: modelName || undefined,
-            identity: identity
-              ? { id: identity.id, name: identity.name }
-              : undefined,
-          }
-        : undefined,
+    const resource: Omit<Agent, "status"> = {
+      apiVersion: "konveyor.io/v1alpha1",
+      kind: "Agent",
+      metadata: {
+        name: values.name,
+        ...(agent?.metadata.namespace && {
+          namespace: agent.metadata.namespace,
+        }),
+        ...(agent?.metadata.resourceVersion && {
+          resourceVersion: agent.metadata.resourceVersion,
+        }),
+      },
+      spec: {
+        description: values.description,
+        prompt: values.prompt || undefined,
+        containerImage: values.containerImage || undefined,
+        model: values.model || undefined,
+        llmProviderRef: values.llmProviderRef
+          ? { name: values.llmProviderRef }
+          : undefined,
+        skillCardRefs: agent?.spec.skillCardRefs,
+        skillCollectionRefs: agent?.spec.skillCollectionRefs,
+        subagentRefs: agent?.spec.subagentRefs,
+      },
     };
 
     if (agent) {
-      updateAgent({
-        id: agent.id,
-        ...payload,
-      });
+      updateAgent(resource as Agent);
     } else {
-      createAgent(payload);
+      createAgent(resource);
     }
   };
 
@@ -195,112 +163,42 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
           label={t("terms.name")}
           fieldId="agent-name"
           isRequired
+          isDisabled={!!agent}
         />
-
         <HookFormPFTextInput
           control={control}
           name="description"
           label={t("terms.description")}
           fieldId="agent-description"
+          isRequired
         />
-
-        {/* Recipes (multi-select) */}
-        <Title headingLevel="h3" size="md" style={{ marginTop: 16 }}>
-          Recipes
-        </Title>
-        <HookFormPFGroupController
+        <HookFormPFTextArea
           control={control}
-          name="recipeIds"
-          label=""
-          fieldId="agent-recipe-ids"
-          renderInput={({ field: { value, onChange } }) => {
-            const selected: number[] = Array.isArray(value) ? value : [];
-            const toggle = (id: number, checked: boolean) => {
-              const next = checked
-                ? [...new Set([...selected, id])]
-                : selected.filter((s) => s !== id);
-              onChange(next);
-            };
-            if (recipes.length === 0) {
-              return (
-                <TextContent>
-                  <Text component="small">
-                    No recipes defined. Create one in Admin → Agent Recipes.
-                  </Text>
-                </TextContent>
-              );
-            }
-            return (
-              <FormGroup
-                fieldId="agent-recipe-checkboxes"
-                role="group"
-                aria-label="Recipes"
-              >
-                {recipes.map((recipe) => (
-                  <Checkbox
-                    key={recipe.id}
-                    id={`agent-recipe-${recipe.id}`}
-                    label={recipe.name}
-                    description={recipe.description}
-                    isChecked={selected.includes(recipe.id)}
-                    onChange={(_event, checked) => toggle(recipe.id, checked)}
-                  />
-                ))}
-              </FormGroup>
-            );
-          }}
+          name="prompt"
+          label="Prompt"
+          fieldId="agent-prompt"
         />
-
-        {/* Model Configuration (optional) */}
-        <ExpandableSection
-          toggleText="Model configuration (optional)"
-          toggleId="agent-model-config-toggle"
-          contentId="agent-model-config-content"
-        >
-          <HookFormPFTextInput
-            control={control}
-            name="modelProviderType"
-            label="Provider type"
-            fieldId="agent-model-provider-type"
-            placeholder="e.g. openai, anthropic, ollama"
-          />
-          <HookFormPFTextInput
-            control={control}
-            name="modelUrl"
-            label="Provider URL"
-            fieldId="agent-model-url"
-            placeholder="https://api.openai.com"
-          />
-          <HookFormPFTextInput
-            control={control}
-            name="modelName"
-            label="Model name"
-            fieldId="agent-model-name"
-            placeholder="e.g. gpt-4o"
-          />
-          <HookFormPFGroupController
-            control={control}
-            name="modelIdentityId"
-            label="Credentials"
-            fieldId="agent-model-identity"
-            renderInput={({ field: { value, onChange } }) => {
-              const options = identities.map((i) => ({
-                value: String(i.id),
-                label: `${i.name}${i.kind ? ` (${i.kind})` : ""}`,
-              }));
-              return (
-                <SimpleSelect
-                  toggleId="agent-model-identity-toggle"
-                  ariaLabel="Credentials"
-                  value={value || undefined}
-                  options={options}
-                  isDisabled={!options.length}
-                  onSelect={(selected) => onChange(selected ?? "")}
-                />
-              );
-            }}
-          />
-        </ExpandableSection>
+        <HookFormPFTextInput
+          control={control}
+          name="containerImage"
+          label="Container Image"
+          fieldId="agent-container-image"
+          placeholder="e.g. quay.io/konveyor/agent:latest"
+        />
+        <HookFormPFTextInput
+          control={control}
+          name="llmProviderRef"
+          label="LLM Provider"
+          fieldId="agent-llm-provider"
+          placeholder="Name of an LLMProvider resource"
+        />
+        <HookFormPFTextInput
+          control={control}
+          name="model"
+          label="Model"
+          fieldId="agent-model"
+          placeholder="e.g. gpt-4o"
+        />
 
         <ActionGroup>
           <Button
@@ -330,19 +228,14 @@ const AgentFormRenderer: React.FC<AgentFormProps> = ({
 
 const useAgentFormData = ({
   onActionSuccess,
-  onActionFail,
 }: {
   onActionSuccess?: () => void;
-  onActionFail?: () => void;
 } = {}) => {
   const { t } = useTranslation();
   const { pushNotification } = React.useContext(NotificationsContext);
 
   const { agents: existingAgents, isSuccess: isAgentsSuccess } =
     useFetchAgents();
-  const { agentRecipes: recipes, isSuccess: isRecipesSuccess } =
-    useFetchAgentRecipes();
-  const { identities, isSuccess: isIdentitiesSuccess } = useFetchIdentities();
 
   const onCreateSuccess = () => {
     pushNotification({
@@ -355,39 +248,34 @@ const useAgentFormData = ({
     onActionSuccess?.();
   };
 
-  const onUpdateSuccess = (_id: number) => {
+  const onUpdateSuccess = (_name: string) => {
     pushNotification({
-      title: t("toastr.success.save", {
-        type: "agent",
-      }),
+      title: t("toastr.success.save", { type: "agent" }),
       variant: "success",
     });
     onActionSuccess?.();
   };
 
-  const onCreateUpdateError = (error: AxiosError) => {
+  const onError = (error: AxiosError) => {
     pushNotification({
       title: getAxiosErrorMessage(error),
       variant: "danger",
     });
-    onActionFail?.();
   };
 
   const { mutate: createAgent } = useCreateAgentMutation(
     onCreateSuccess,
-    onCreateUpdateError
+    onError
   );
 
   const { mutate: updateAgent } = useUpdateAgentMutation(
     onUpdateSuccess,
-    onCreateUpdateError
+    onError
   );
 
   return {
     existingAgents,
-    recipes,
-    identities,
-    isDataReady: isAgentsSuccess && isRecipesSuccess && isIdentitiesSuccess,
+    isDataReady: isAgentsSuccess,
     createAgent,
     updateAgent,
   };

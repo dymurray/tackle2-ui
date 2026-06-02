@@ -2,11 +2,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AxiosError } from "axios";
 
 import { DEFAULT_REFETCH_INTERVAL } from "@app/Constants";
-import { AgentConfig } from "@app/api/models";
+import type { Agent } from "@app/api/k8s-models";
 import {
   createAgent,
   deleteAgent,
-  getAgentById,
+  getAgent,
   getAgents,
   updateAgent,
 } from "@app/api/rest";
@@ -33,13 +33,13 @@ export const useFetchAgents = (
   };
 };
 
-export const useFetchAgentById = (id?: number | string) => {
+export const useFetchAgentByName = (name?: string) => {
   const { data, isLoading, error } = useQuery({
-    queryKey: [AGENT_QUERY_KEY, id],
+    queryKey: [AGENT_QUERY_KEY, name],
     queryFn: () =>
-      id === undefined ? Promise.resolve(undefined) : getAgentById(id),
+      name === undefined ? Promise.resolve(undefined) : getAgent(name),
     onError: (error: AxiosError) => console.log("error, ", error),
-    enabled: id !== undefined,
+    enabled: name !== undefined,
   });
 
   return {
@@ -66,35 +66,36 @@ export const useCreateAgentMutation = (
 };
 
 export const useUpdateAgentMutation = (
-  onSuccess: (id: number) => void,
+  onSuccess: (name: string) => void,
   onError: (err: AxiosError) => void
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
     mutationFn: updateAgent,
-    onSuccess: (_, { id }) => {
-      onSuccess(id);
+    onSuccess: (result) => {
+      const name = result.metadata.name;
+      onSuccess(name);
       queryClient.invalidateQueries({ queryKey: [AGENTS_QUERY_KEY] });
-      queryClient.invalidateQueries({ queryKey: [AGENT_QUERY_KEY, id] });
+      queryClient.invalidateQueries({ queryKey: [AGENT_QUERY_KEY, name] });
     },
     onError: onError,
   });
 };
 
 export const useDeleteAgentMutation = (
-  onSuccess: (agent: AgentConfig) => void,
+  onSuccess: (agent: Agent) => void,
   onError: (err: AxiosError) => void
 ) => {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (agent: AgentConfig) => deleteAgent(agent.id),
+    mutationFn: (agent: Agent) => deleteAgent(agent.metadata.name),
     onSuccess: (_, agent) => {
       onSuccess(agent);
       queryClient.invalidateQueries({ queryKey: [AGENTS_QUERY_KEY] });
       queryClient.invalidateQueries({
-        queryKey: [AGENT_QUERY_KEY, agent.id],
+        queryKey: [AGENT_QUERY_KEY, agent.metadata.name],
       });
     },
     onError: onError,
