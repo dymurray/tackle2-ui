@@ -8,13 +8,18 @@ import {
   EmptyStateHeader,
   EmptyStateIcon,
   Label,
+  Modal,
   PageSection,
   PageSectionVariants,
   Text,
   TextContent,
+  Toolbar,
+  ToolbarContent,
+  ToolbarGroup,
+  ToolbarItem,
   Tooltip,
 } from "@patternfly/react-core";
-import { CubesIcon, TrashIcon } from "@patternfly/react-icons";
+import { CubesIcon, PencilAltIcon, TrashIcon } from "@patternfly/react-icons";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@patternfly/react-table";
 
 import type { LLMProvider } from "@app/api/k8s-models";
@@ -28,9 +33,15 @@ import {
 } from "@app/queries/llmproviders";
 import { getAxiosErrorMessage } from "@app/utils/utils";
 
+import LLMProviderForm from "./components/llm-provider-form";
+
 const LLMProviders: FC = () => {
   const { pushNotification } = useNotifications();
   const [toDelete, setToDelete] = useState<LLMProvider | null>(null);
+  const [openCreate, setOpenCreate] = useState(false);
+  const [providerToEdit, setProviderToEdit] = useState<LLMProvider | null>(
+    null
+  );
 
   const { llmProviders, isLoading, fetchError } = useFetchLLMProviders();
 
@@ -70,6 +81,24 @@ const LLMProviders: FC = () => {
               backgroundColor: "var(--pf-v5-global--BackgroundColor--100)",
             }}
           >
+            <Toolbar>
+              <ToolbarContent>
+                <ToolbarGroup variant="button-group">
+                  <ToolbarItem>
+                    <Button
+                      type="button"
+                      id="create-new-llm-provider"
+                      aria-label="Create new LLM provider"
+                      variant={ButtonVariant.primary}
+                      onClick={() => setOpenCreate(true)}
+                    >
+                      New LLM Provider
+                    </Button>
+                  </ToolbarItem>
+                </ToolbarGroup>
+              </ToolbarContent>
+            </Toolbar>
+
             <Table aria-label="LLM providers table">
               <Thead>
                 <Tr>
@@ -108,13 +137,22 @@ const LLMProviders: FC = () => {
                         {p.spec.models?.map((m) => m.name).join(", ") || "—"}
                       </Td>
                       <Td>
-                        {p.status?.ready ? (
+                        {p.status?.ready === true ? (
                           <Label color="green">Ready</Label>
-                        ) : (
+                        ) : p.status?.ready === false ? (
                           <Label color="grey">Pending</Label>
+                        ) : (
+                          "—"
                         )}
                       </Td>
                       <Td isActionCell>
+                        <Tooltip content="Edit">
+                          <Button
+                            variant="plain"
+                            icon={<PencilAltIcon />}
+                            onClick={() => setProviderToEdit(p)}
+                          />
+                        </Tooltip>
                         <Tooltip content="Delete">
                           <Button
                             variant="plain"
@@ -132,6 +170,28 @@ const LLMProviders: FC = () => {
           </div>
         </ConditionalRender>
       </PageSection>
+
+      <Modal
+        title="New LLM Provider"
+        variant="medium"
+        isOpen={openCreate}
+        onClose={() => setOpenCreate(false)}
+      >
+        <LLMProviderForm onClose={() => setOpenCreate(false)} />
+      </Modal>
+
+      <Modal
+        title="Edit LLM Provider"
+        variant="medium"
+        isOpen={!!providerToEdit}
+        onClose={() => setProviderToEdit(null)}
+      >
+        <LLMProviderForm
+          key={providerToEdit?.metadata.name ?? ""}
+          llmProvider={providerToEdit}
+          onClose={() => setProviderToEdit(null)}
+        />
+      </Modal>
 
       <ConfirmDialog
         title={`Delete LLM provider "${toDelete?.metadata.name ?? ""}"?`}

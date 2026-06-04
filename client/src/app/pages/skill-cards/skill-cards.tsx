@@ -127,10 +127,12 @@ const SkillCards: FC = () => {
                             : "—"}
                       </Td>
                       <Td>
-                        {sc.status?.ready ? (
+                        {sc.status?.ready === true ? (
                           <Label color="green">Ready</Label>
-                        ) : (
+                        ) : sc.status?.ready === false ? (
                           <Label color="grey">Pending</Label>
+                        ) : (
+                          "—"
                         )}
                       </Td>
                       <Td isActionCell>

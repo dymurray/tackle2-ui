@@ -1,0 +1,177 @@
+apiVersion: konveyor.io/v1alpha1
+kind: AgentPlan
+metadata:
+  name: javaee-to-quarkus
+  namespace: konveyor-tackle
+spec:
+  description: >
+    End-to-end Java EE to Quarkus migration plan. Three stages:
+    analysis and dependency migration, source code transformation,
+    and automated code review.
+  guide: |
+    # Java EE to Quarkus Migration Plan
+
+    ## Goal
+    Modernize a Java EE application to run on Quarkus, replacing
+    legacy Java EE APIs with their Jakarta EE 10 and Quarkus-native
+    equivalents.
+
+    ## Approach
+    This plan executes in three stages:
+
+    1. **Foundation** — Analyze the project, update Maven dependencies
+       from javax to jakarta, and add required Quarkus extensions.
+       This is the structural work that everything else builds on.
+
+    2. **Transform** — Walk through the source code and transform
+       Java EE patterns to Quarkus equivalents: import renames,
+       EJB→CDI, JPA→Panache, JAX-RS→RESTEasy Reactive, etc.
+       Tests are run continuously to catch regressions.
+
+    3. **Review** — A separate agent reviews all changes for
+       correctness and completeness, producing a final report.
+
+    ## Shared workspace
+    All stages share a workspace PVC containing the application's
+    git repository. Stage 1 creates a migration branch, stages 2
+    and 3 continue on that branch. Handoff documents are written
+    to `/.konveyor/` in the workspace.
+
+    ## Context from Konveyor
+    The agents have access to Konveyor Hub analysis results for
+    the target application. This includes discovered issues,
+    dependencies, and migration insights from the analyzer.
+
+  stages:
+    - name: foundation
+      description: >
+        Analyze the project and migrate Maven dependencies from
+        javax to jakarta. Add Quarkus BOM and required extensions.
+      agentRef:
+        name: java-migration-agent
+      phases:
+        - name: analyze-dependencies
+          description: >
+            Scan all pom.xml files and produce a dependency
+            migration report.
+          instructions: |
+            Analyze the application's Maven project structure.
+
+            1. Read the root pom.xml and all module pom.xml files
+            2. Identify every dependency using javax.* groupIds
+            3. Check Konveyor analysis results for this application
+               (GET /hub/applications/{id}/analysis/issues) to find
+               additional migration issues the analyzer detected
+            4. Write a dependency report to `/.konveyor/dependency-report.md`
+               listing every dependency that needs migration, its
+               current version, and the target jakarta version
+
+        - name: migrate-pom
+          description: >
+            Update pom.xml files with jakarta dependencies and
+            Quarkus BOM.
+          instructions: |
+            Based on the dependency report from the previous phase,
+            update all pom.xml files:
+
+            1. Add the Quarkus BOM to dependency management:
+               ```xml
+               <dependencyManagement>
+                 <dependencies>
+                   <dependency>
+                     <groupId>io.quarkus.platform</groupId>
+                     <artifactId>quarkus-bom</artifactId>
+                     <version>3.17.5</version>
+                     <type>pom</type>
+                     <scope>import</scope>
+                   </dependency>
+                 </dependencies>
+               </dependencyManagement>
+               ```
+            2. Replace javax dependencies with jakarta equivalents
+            3. Add Quarkus extensions: quarkus-resteasy-reactive,
+               quarkus-hibernate-orm-panache, quarkus-arc, etc.
+            4. Run `mvn compile` to verify the POM changes are valid
+            5. Commit with: `chore(deps): migrate to jakarta + quarkus bom`
+
+    - name: transform
+      description: >
+        Transform Java source code from Java EE to Quarkus patterns.
+        All phases share context from the foundation stage.
+      agentRef:
+        name: java-migration-agent
+      phases:
+        - name: migrate-imports
+          description: >
+            Replace javax.* imports with jakarta.* across all source.
+          instructions: |
+            Walk through all .java files in src/main and src/test.
+
+            1. Replace javax.* imports with jakarta.* equivalents
+            2. Do NOT change JDK packages: javax.sql, javax.crypto,
+               javax.net, javax.security.auth
+            3. Update any fully-qualified class references in code
+            4. Run `mvn compile` to verify
+            5. Commit with: `refactor(imports): javax to jakarta`
+
+        - name: migrate-ejb-to-cdi
+          description: >
+            Replace EJB patterns with CDI and Quarkus equivalents.
+          instructions: |
+            Find all EJB usage and replace with CDI/Quarkus patterns:
+
+            1. `@Stateless` → remove annotation, add `@ApplicationScoped`
+            2. `@Singleton` (javax.ejb) → `@Singleton` (jakarta.inject)
+            3. `@EJB` injection → `@Inject`
+            4. `@Schedule` → `@io.quarkus.scheduler.Scheduled`
+            5. `@MessageDriven` → SmallRye Reactive Messaging
+            6. Remove ejb-jar.xml if present
+            7. Run `mvn test` to verify
+            8. Commit with: `refactor(ejb): replace EJB with CDI`
+
+        - name: migrate-config
+          description: >
+            Move configuration to Quarkus application.properties.
+          instructions: |
+            Migrate application configuration to Quarkus format:
+
+            1. Find web.xml, persistence.xml, and other Java EE config
+            2. Extract configuration values
+            3. Create/update src/main/resources/application.properties
+               with Quarkus equivalents:
+               - Datasource: quarkus.datasource.*
+               - Hibernate: quarkus.hibernate-orm.*
+               - HTTP: quarkus.http.*
+            4. Remove Java EE config files that are no longer needed
+            5. Run `mvn test` to verify
+            6. Commit with: `refactor(config): migrate to application.properties`
+
+    - name: review
+      description: >
+        Independent review of all migration changes. Uses a
+        different agent with a fresh context to catch issues
+        the migration agent might have missed.
+      agentRef:
+        name: code-review-agent
+      phases:
+        - name: review-migration
+          description: Comprehensive review of all migration changes.
+          instructions: |
+            Review all changes made in the previous stages.
+
+            1. Read `/.konveyor/dependency-report.md` from stage 1
+            2. Run `git diff main..HEAD` to see all changes
+            3. Verify against the review checklist in your prompt
+            4. Run `mvn test` one final time
+            5. Write a review report to `/.konveyor/review-report.md`
+               with sections:
+               - Summary (pass/fail, confidence level)
+               - Findings (any issues found)
+               - Recommendations (improvements for future runs)
+            6. If critical issues found, note them clearly so the
+               orchestrator can decide whether to proceed
+
+status:
+  ready: true
+  stageCount: 3
+  phaseCount: 6

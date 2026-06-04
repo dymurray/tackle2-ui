@@ -150,10 +150,12 @@ const AgentPlans: FC = () => {
                         <Td>{stageCount}</Td>
                         <Td>{phaseCount}</Td>
                         <Td>
-                          {plan.status?.ready ? (
+                          {plan.status?.ready === true ? (
                             <Label color="green">Ready</Label>
-                          ) : (
+                          ) : plan.status?.ready === false ? (
                             <Label color="grey">Pending</Label>
+                          ) : (
+                            "—"
                           )}
                         </Td>
                         <Td isActionCell>

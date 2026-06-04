@@ -105,10 +105,12 @@ const SkillCollections: FC = () => {
                       <Td modifier="truncate">{sc.spec.description}</Td>
                       <Td>{sc.status?.skillCount ?? sc.spec.skills?.length ?? 0}</Td>
                       <Td>
-                        {sc.status?.ready ? (
+                        {sc.status?.ready === true ? (
                           <Label color="green">Ready</Label>
-                        ) : (
+                        ) : sc.status?.ready === false ? (
                           <Label color="grey">Pending</Label>
+                        ) : (
+                          "—"
                         )}
                       </Td>
                       <Td isActionCell>

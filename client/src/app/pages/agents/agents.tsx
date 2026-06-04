@@ -137,10 +137,12 @@ const Agents: FC = () => {
                       <Td>{agent.spec.llmProviderRef?.name || "—"}</Td>
                       <Td>{agent.spec.model || "—"}</Td>
                       <Td>
-                        {agent.status?.ready ? (
+                        {agent.status?.ready === true ? (
                           <Label color="green">Ready</Label>
-                        ) : (
+                        ) : agent.status?.ready === false ? (
                           <Label color="grey">Pending</Label>
+                        ) : (
+                          "—"
                         )}
                       </Td>
                       <Td isActionCell>

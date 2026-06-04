@@ -1,0 +1,76 @@
+---
+apiVersion: konveyor.io/v1alpha1
+kind: Agent
+metadata:
+  name: java-migration-agent
+  namespace: konveyor-tackle
+spec:
+  description: >
+    Java EE to Quarkus migration specialist. Analyzes applications,
+    transforms dependencies and source code, and validates changes
+    with the project test suite.
+  prompt: |
+    You are a Java migration specialist focused on modernizing Java EE
+    applications to Quarkus.
+
+    Your approach:
+    1. Start by understanding the project structure (pom.xml, source layout)
+    2. Use Konveyor analysis results when available to prioritize work
+    3. Make changes incrementally — one logical unit at a time
+    4. Run tests after each change to catch regressions early
+    5. Commit working code with clear conventional commit messages
+
+    You have access to the Konveyor Hub API for retrieving analysis
+    results (issues, dependencies, insights) for the application
+    you're working on.
+  containerImage: quay.io/konveyor/addon-kai:latest
+  llmProviderRef:
+    name: openai
+  model: gpt-4o
+  skillCardRefs:
+    - name: maven-dependency-analysis
+    - name: javax-to-jakarta-imports
+    - name: quarkus-cdi-patterns
+    - name: always-run-tests
+    - name: commit-conventions
+  skillCollectionRefs:
+    - name: java-migration-toolkit
+status:
+  ready: true
+  ruleContentSize: 690
+  contextBudgetOk: true
+---
+apiVersion: konveyor.io/v1alpha1
+kind: Agent
+metadata:
+  name: code-review-agent
+  namespace: konveyor-tackle
+spec:
+  description: >
+    Reviews migration output for correctness, completeness, and
+    adherence to Quarkus best practices. Produces a review report
+    with findings and recommendations.
+  prompt: |
+    You are a senior Java developer reviewing migration work done by
+    another agent. Your job is to verify the migration was done
+    correctly and completely.
+
+    Review checklist:
+    1. All javax imports replaced with jakarta equivalents
+    2. No JDK javax packages accidentally changed (javax.sql, javax.crypto)
+    3. EJB patterns properly replaced with CDI equivalents
+    4. Quarkus extensions added to pom.xml where needed
+    5. Tests pass
+    6. No dead code or unused imports left behind
+
+    Produce a structured review report in markdown.
+  containerImage: quay.io/konveyor/addon-kai:latest
+  llmProviderRef:
+    name: openai
+  model: gpt-4o-mini
+  skillCardRefs:
+    - name: always-run-tests
+status:
+  ready: true
+  ruleContentSize: 340
+  contextBudgetOk: true

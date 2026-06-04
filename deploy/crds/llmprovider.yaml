@@ -47,10 +47,15 @@ spec:
             spec:
               type: object
               required:
+                - description
                 - url
                 - credentialsSecretRef
                 - models
               properties:
+                description:
+                  type: string
+                  description: >
+                    Human-readable description of this LLM provider.
                 url:
                   type: string
                   description: >
