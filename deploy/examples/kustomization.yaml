@@ -7,3 +7,5 @@ resources:
   - llmprovider.yaml
   - agents.yaml
   - agentplan.yaml
+  - agentrun.yaml
+  - agentplanrun.yaml

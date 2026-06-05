@@ -2,39 +2,96 @@
 apiVersion: konveyor.io/v1alpha1
 kind: Agent
 metadata:
-  name: java-migration-agent
+  name: java-analysis-agent
   namespace: konveyor-tackle
 spec:
   description: >
-    Java EE to Quarkus migration specialist. Analyzes applications,
-    transforms dependencies and source code, and validates changes
-    with the project test suite.
+    Analyzes Java project structure, dependencies, and Konveyor Hub
+    analysis results. Produces reports but does not modify code.
   prompt: |
-    You are a Java migration specialist focused on modernizing Java EE
-    applications to Quarkus.
+    You are a Java project analyst. Your job is to understand the
+    structure of a Java application and produce clear reports about
+    what needs to change for a migration.
 
     Your approach:
-    1. Start by understanding the project structure (pom.xml, source layout)
-    2. Use Konveyor analysis results when available to prioritize work
-    3. Make changes incrementally — one logical unit at a time
-    4. Run tests after each change to catch regressions early
-    5. Commit working code with clear conventional commit messages
+    1. Read all pom.xml files to understand the module structure
+    2. Query Konveyor Hub analysis results when available
+    3. Produce structured markdown reports in /.konveyor/
+    4. Do NOT modify any source code or build files
 
     You have access to the Konveyor Hub API for retrieving analysis
     results (issues, dependencies, insights) for the application
     you're working on.
-  containerImage: quay.io/konveyor/addon-kai:latest
+  containerImage: quay.io/konveyor/agent-java:latest
   llmProviderRef:
     name: openai
   model: gpt-4o
   skillCardRefs:
     - name: maven-dependency-analysis
+status:
+  ready: true
+  ruleContentSize: 0
+  contextBudgetOk: true
+---
+apiVersion: konveyor.io/v1alpha1
+kind: Agent
+metadata:
+  name: java-maven-agent
+  namespace: konveyor-tackle
+spec:
+  description: >
+    Migrates Maven dependencies from javax to jakarta and adds
+    Quarkus BOM and extensions.
+  prompt: |
+    You are a Maven migration specialist. Your job is to update
+    pom.xml files for a Java EE to Quarkus migration.
+
+    Your approach:
+    1. Use any analysis reports in /.konveyor/ to guide your work
+    2. Make changes incrementally — one pom.xml at a time
+    3. Run mvn compile after each change to verify
+    4. Commit working changes with clear conventional commit messages
+  containerImage: quay.io/konveyor/agent-java:latest
+  llmProviderRef:
+    name: openai
+  model: gpt-4o
+  skillCardRefs:
+    - name: javax-to-jakarta-imports
+    - name: always-run-tests
+    - name: commit-conventions
+status:
+  ready: true
+  ruleContentSize: 690
+  contextBudgetOk: true
+---
+apiVersion: konveyor.io/v1alpha1
+kind: Agent
+metadata:
+  name: java-source-agent
+  namespace: konveyor-tackle
+spec:
+  description: >
+    Transforms Java source code from Java EE patterns to Quarkus
+    equivalents. Handles imports, EJB to CDI, configuration, and
+    other source-level changes.
+  prompt: |
+    You are a Java source code migration specialist focused on
+    transforming Java EE patterns to Quarkus equivalents.
+
+    Your approach:
+    1. Work through source files systematically
+    2. Make one type of change at a time (imports, then EJB, etc.)
+    3. Run tests after each logical group of changes
+    4. Commit working code with clear conventional commit messages
+  containerImage: quay.io/konveyor/agent-java:latest
+  llmProviderRef:
+    name: openai
+  model: gpt-4o
+  skillCardRefs:
     - name: javax-to-jakarta-imports
     - name: quarkus-cdi-patterns
     - name: always-run-tests
     - name: commit-conventions
-  skillCollectionRefs:
-    - name: java-migration-toolkit
 status:
   ready: true
   ruleContentSize: 690
@@ -64,7 +121,7 @@ spec:
     6. No dead code or unused imports left behind
 
     Produce a structured review report in markdown.
-  containerImage: quay.io/konveyor/addon-kai:latest
+  containerImage: quay.io/konveyor/agent-java:latest
   llmProviderRef:
     name: openai
   model: gpt-4o-mini

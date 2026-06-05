@@ -28,19 +28,43 @@ within budget before execution begins.
 **Agent** — The composable execution unit. Binds a set of SkillCards
 and SkillCollections, an LLMProvider (with a selected model), a
 container image (carrying the agent runtime and language toolchains),
-and a prompt (standing instructions for how the agent operates).
-An Agent may reference other Agents as subagents; subagent delegation
-is handled within the agent runtime (e.g. goose sub-recipes, opencode
-task tool).
+a prompt (standing instructions for how the agent operates), and
+optionally a memory service for accumulating domain knowledge across
+executions. Subagent delegation is a runtime concern — the agent
+runtime (e.g. goose sub-recipes) may spawn subagents internally but
+this is not modeled in the CRD.
 
 **AgentPlan** — A reusable playbook combining a high-level guide with
 an ordered sequence of stages. Each stage groups one or more phases
-that share a context boundary (same Agent, same sandbox). Each phase
-carries its own instructions — the specific task for the agent. The
-plan's guide provides ambient context (written as a context file in
-the workspace) so each agent understands where its work fits in the
-bigger picture. Created by architects or PMs, executed by developers
-against specific applications.
+that share session continuity. Each phase references its own Agent
+and is an independently-executed unit of work that runs in its own
+Sandbox, resuming the agent session from the previous phase via
+shared persistent storage (PVC). Phases within a stage can use
+different Agents (different skills, prompts) as long as they share
+the same underlying runtime for session resumption. Phase boundaries
+provide checkpoints — results can be inspected, a failed phase
+retried, or execution stopped early. Stages start with fresh agent
+context. Cross-stage continuity comes from the shared workspace PVC:
+each stage updates handoff files (e.g. PLAN.md tracking what's done
+and what remains) that the next stage's agent reads. The plan's guide
+provides ambient context (written as a context file in the workspace)
+so each agent understands where its work fits in the bigger picture.
+An AgentPlan is a template — creating one does not execute anything.
+
+**AgentRun** — A request to execute a single Agent. References an
+Agent (or inlines the spec), carries instructions and generic
+parameters (key-value pairs injected as environment variables into
+the Sandbox). The controller creates a Sandbox and tracks status to
+completion. Parameters are domain-agnostic — the Konveyor UI knows
+to populate Hub-specific params (APP_ID, HUB_BASE_URL, etc.) for
+migration use cases.
+
+**AgentPlanRun** — A request to execute an AgentPlan. References an
+AgentPlan (or inlines the spec) and carries generic parameters. The
+controller orchestrates the execution: creates a Sandbox per phase,
+manages session and workspace PVCs, passes session IDs between
+phases, writes the plan guide, and handles cross-stage handoff.
+Tracks per-phase status (pending, running, completed, failed).
 
 ## Personas
 
@@ -84,15 +108,24 @@ the agentic platform Hub serves as a data service: agents call its API
 at runtime to fetch analysis results, application metadata, and git
 credentials. Hub does not launch or manage agent workloads.
 
+**Memory Service** — A persistent, queryable knowledge base owned by
+an Agent, accessible via MCP. The agent reads from it at session
+start and writes discoveries at session end. Accumulates domain
+knowledge (patterns, pitfalls, API mappings) across executions,
+enabling organizational learning. Each Agent has its own memory
+service instance.
+
 ## Relationships
 
 - An **Agent** references zero or more **SkillCards** and zero or more
   **SkillCollections**.
 - An **Agent** references exactly one **LLMProvider** and selects a
   model from it.
-- An **Agent** may reference other **Agents** as subagents.
-- An **AgentPlan** organizes work into stages; each stage references
-  one **Agent** and contains one or more phases with instructions.
+- An **AgentPlan** organizes work into stages; each stage contains
+  one or more phases. Each phase references an **Agent** and carries
+  instructions.
+- An **AgentRun** references one **Agent** (or inlines it).
+- An **AgentPlanRun** references one **AgentPlan** (or inlines it).
 - **SkillCards** and **SkillCollections** reference OCI artifacts
   published via **skillimage**.
 - At execution time, the plan's guide is written to the workspace as a

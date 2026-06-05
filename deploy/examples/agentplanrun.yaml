@@ -1,0 +1,22 @@
+apiVersion: konveyor.io/v1alpha1
+kind: AgentPlanRun
+metadata:
+  name: coolstore-quarkus-migration
+  namespace: konveyor-tackle
+spec:
+  agentPlanRef:
+    name: javaee-to-quarkus
+  params:
+    - name: APP_ID
+      value: "42"
+    - name: HUB_BASE_URL
+      value: "https://hub.konveyor-tackle.svc:8443"
+    - name: HUB_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: hub-credentials
+          key: token
+    - name: REPO_URL
+      value: "https://github.com/konveyor-demos/coolstore.git"
+    - name: TARGET_BRANCH
+      value: "migration/quarkus"
