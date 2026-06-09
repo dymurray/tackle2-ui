@@ -264,7 +264,9 @@ export enum TablePersistenceKeyPrefix {
   platformApplications = "pa",
   generatorCollections = "gc",
   generators = "g",
+  skillCards = "sc",
+  skillCollections = "scl",
+  llmProviders = "lp",
   agents = "ag",
   agentPlans = "ap",
-  agentRecipes = "ar2",
 }

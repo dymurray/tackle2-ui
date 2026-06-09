@@ -1,7 +1,10 @@
 /** @import { Logger, Options, OnProxyEvent } from "http-proxy-middleware/dist/types.js" */
+import fs from "node:fs";
 import * as cookie from "cookie";
 
 import { KONVEYOR_ENV } from "@konveyor-ui/common";
+
+const SA_TOKEN_PATH = "/var/run/secrets/kubernetes.io/serviceaccount/token";
 
 /** @type Logger */
 const logger =
@@ -131,6 +134,30 @@ export default {
 
     on: {
       proxyReq: addBearerTokenIfNeeded,
+    },
+  },
+
+  k8s: {
+    pathFilter: "/k8s",
+    target:
+      process.env.KUBERNETES_API_URL || "https://kubernetes.default.svc",
+    logger,
+
+    changeOrigin: true,
+    secure: false,
+    pathRewrite: {
+      "^/k8s": "",
+    },
+
+    on: {
+      proxyReq(proxyReq) {
+        try {
+          const token = fs.readFileSync(SA_TOKEN_PATH, "utf8").trim();
+          proxyReq.setHeader("Authorization", `Bearer ${token}`);
+        } catch {
+          logger.warn("K8s proxy: service account token not available");
+        }
+      },
     },
   },
 };

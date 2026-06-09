@@ -330,6 +330,24 @@ export const AdminSidebar = ({
           </NavLink>
         </NavItem>
         <NavItem>
+          <NavLink to={AdminPaths.skillCards} activeClassName="pf-m-current">
+            Skill Cards
+          </NavLink>
+        </NavItem>
+        <NavItem>
+          <NavLink
+            to={AdminPaths.skillCollections}
+            activeClassName="pf-m-current"
+          >
+            Skill Collections
+          </NavLink>
+        </NavItem>
+        <NavItem>
+          <NavLink to={AdminPaths.llmProviders} activeClassName="pf-m-current">
+            LLM Providers
+          </NavLink>
+        </NavItem>
+        <NavItem>
           <NavLink to={AdminPaths.agents} activeClassName="pf-m-current">
             Agents
           </NavLink>
@@ -337,11 +355,6 @@ export const AdminSidebar = ({
         <NavItem>
           <NavLink to={AdminPaths.agentPlans} activeClassName="pf-m-current">
             Agent Plans
-          </NavLink>
-        </NavItem>
-        <NavItem>
-          <NavLink to={AdminPaths.agentRecipes} activeClassName="pf-m-current">
-            Agent Recipes
           </NavLink>
         </NavItem>
         <NavItem>

@@ -1,0 +1,28 @@
+apiVersion: konveyor.io/v1alpha1
+kind: SkillCollection
+metadata:
+  name: java-migration-toolkit
+  namespace: konveyor-tackle
+spec:
+  description: >
+    Complete toolkit for Java EE to Quarkus migration. Includes
+    dependency analysis, import transformation, CDI pattern
+    migration, and supporting skills.
+  version: "1.0.0"
+  skills:
+    - name: maven-dependency-analysis
+      image: quay.io/konveyor/skills/maven-dep-analysis:1.0
+    - name: javax-to-jakarta
+      image: quay.io/konveyor/skills/javax-to-jakarta:1.0
+    - name: quarkus-cdi-patterns
+      image: quay.io/konveyor/skills/quarkus-cdi:1.0
+    - name: quarkus-config
+      image: quay.io/konveyor/skills/quarkus-config:1.0
+    - name: jpa-to-panache
+      image: quay.io/konveyor/skills/jpa-to-panache:1.0
+    - name: rest-to-resteasy-reactive
+      source: https://github.com/konveyor/skills
+      ref: main
+status:
+  skillCount: 6
+  ready: true

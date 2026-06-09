@@ -12,7 +12,7 @@ import {
   Form,
 } from "@patternfly/react-core";
 
-import type { AgentPlan, New } from "@app/api/models";
+import type { AgentPlan } from "@app/api/k8s-models";
 import { AppPlaceholder } from "@app/components/AppPlaceholder";
 import { ConditionalRender } from "@app/components/ConditionalRender";
 import {
@@ -25,11 +25,12 @@ import {
   useFetchAgentPlans,
   useUpdateAgentPlanMutation,
 } from "@app/queries/agent-plans";
-import { duplicateNameCheck, getAxiosErrorMessage } from "@app/utils/utils";
+import { getAxiosErrorMessage } from "@app/utils/utils";
 
-export interface AgentPlanFormValues {
+interface AgentPlanFormValues {
   name: string;
-  markdown: string;
+  description: string;
+  guide: string;
 }
 
 export interface AgentPlanFormProps {
@@ -51,7 +52,6 @@ const AgentPlanFormRenderer: React.FC<AgentPlanFormProps> = ({
   onClose,
 }) => {
   const { t } = useTranslation();
-
   const { existingPlans, createPlan, updatePlan } = useAgentPlanFormData({
     onActionSuccess: onClose,
   });
@@ -64,16 +64,21 @@ const AgentPlanFormRenderer: React.FC<AgentPlanFormProps> = ({
           .trim()
           .required(t("validation.required"))
           .min(3, t("validation.minLength", { length: 3 }))
-          .max(120, t("validation.maxLength", { length: 120 }))
+          .max(63, "Must be 63 characters or less")
+          .matches(
+            /^[a-z0-9][a-z0-9-]*[a-z0-9]$/,
+            "Must be lowercase, alphanumeric, may contain hyphens"
+          )
           .test(
             "Duplicate name",
-            t("validation.duplicateName", { type: "agent plan" }),
+            "An agent plan with this name already exists",
             (value) =>
-              existingPlans
-                ? duplicateNameCheck(existingPlans, plan, value ?? "")
-                : false
+              plan
+                ? true
+                : !existingPlans.some((p) => p.metadata.name === value)
           ),
-        markdown: yup.string().required(t("validation.required")),
+        description: yup.string().trim().required(t("validation.required")),
+        guide: yup.string(),
       }),
     [t, existingPlans, plan]
   );
@@ -81,14 +86,18 @@ const AgentPlanFormRenderer: React.FC<AgentPlanFormProps> = ({
   const defaultValues = useMemo(
     () =>
       !plan
-        ? { name: "", markdown: "" }
-        : { name: plan.name, markdown: plan.markdown ?? "" },
+        ? { name: "", description: "", guide: "" }
+        : {
+            name: plan.metadata.name,
+            description: plan.spec.description || "",
+            guide: plan.spec.guide || "",
+          },
     [plan]
   );
 
   const formMethods = useForm<AgentPlanFormValues>({
     defaultValues,
-    resolver: yupResolver(validationSchema),
+    resolver: yupResolver(validationSchema) as never,
     mode: "all",
   });
 
@@ -99,15 +108,29 @@ const AgentPlanFormRenderer: React.FC<AgentPlanFormProps> = ({
   } = formMethods;
 
   const onValidSubmit = (values: AgentPlanFormValues) => {
-    const payload: New<AgentPlan> = {
-      name: values.name.trim(),
-      markdown: values.markdown,
+    const resource: Omit<AgentPlan, "status"> = {
+      apiVersion: "konveyor.io/v1alpha1",
+      kind: "AgentPlan",
+      metadata: {
+        name: values.name,
+        ...(plan?.metadata.namespace && {
+          namespace: plan.metadata.namespace,
+        }),
+        ...(plan?.metadata.resourceVersion && {
+          resourceVersion: plan.metadata.resourceVersion,
+        }),
+      },
+      spec: {
+        description: values.description,
+        guide: values.guide || undefined,
+        stages: plan?.spec.stages,
+      },
     };
 
     if (plan) {
-      updatePlan({ id: plan.id, ...payload });
+      updatePlan(resource as AgentPlan);
     } else {
-      createPlan(payload);
+      createPlan(resource);
     }
   };
 
@@ -120,19 +143,28 @@ const AgentPlanFormRenderer: React.FC<AgentPlanFormProps> = ({
           label={t("terms.name")}
           fieldId="agent-plan-name"
           isRequired
+          isDisabled={!!plan}
         />
-
+        <HookFormPFTextInput
+          control={control}
+          name="description"
+          label={t("terms.description")}
+          fieldId="agent-plan-description"
+          isRequired
+        />
         <HookFormPFTextArea
           control={control}
-          name="markdown"
-          label="Markdown"
-          fieldId="agent-plan-markdown"
-          isRequired
+          name="guide"
+          label="Guide"
+          fieldId="agent-plan-guide"
           resizeOrientation="vertical"
-          rows={20}
-          placeholder={"# Plan title\n\nSteps the agent should follow..."}
+          rows={12}
+          placeholder={
+            "# Migration Guide\n\nHigh-level overview of the plan..."
+          }
           style={{
-            fontFamily: "var(--pf-v5-global--FontFamily--monospace, monospace)",
+            fontFamily:
+              "var(--pf-v5-global--FontFamily--monospace, monospace)",
             fontSize: "0.9em",
           }}
         />
@@ -165,10 +197,8 @@ const AgentPlanFormRenderer: React.FC<AgentPlanFormProps> = ({
 
 const useAgentPlanFormData = ({
   onActionSuccess,
-  onActionFail,
 }: {
   onActionSuccess?: () => void;
-  onActionFail?: () => void;
 } = {}) => {
   const { t } = useTranslation();
   const { pushNotification } = React.useContext(NotificationsContext);
@@ -187,7 +217,7 @@ const useAgentPlanFormData = ({
     onActionSuccess?.();
   };
 
-  const onUpdateSuccess = (_id: number) => {
+  const onUpdateSuccess = (_name: string) => {
     pushNotification({
       title: t("toastr.success.save", { type: "agent plan" }),
       variant: "success",
@@ -195,22 +225,21 @@ const useAgentPlanFormData = ({
     onActionSuccess?.();
   };
 
-  const onCreateUpdateError = (error: AxiosError) => {
+  const onError = (error: AxiosError) => {
     pushNotification({
       title: getAxiosErrorMessage(error),
       variant: "danger",
     });
-    onActionFail?.();
   };
 
   const { mutate: createPlan } = useCreateAgentPlanMutation(
     onCreateSuccess,
-    onCreateUpdateError
+    onError
   );
 
   const { mutate: updatePlan } = useUpdateAgentPlanMutation(
     onUpdateSuccess,
-    onCreateUpdateError
+    onError
   );
 
   return {

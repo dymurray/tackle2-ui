@@ -1,0 +1,28 @@
+apiVersion: konveyor.io/v1alpha1
+kind: AgentRun
+metadata:
+  name: coolstore-quick-migration
+  namespace: konveyor-tackle
+spec:
+  agentRef:
+    name: java-source-agent
+  instructions: |
+    Migrate this Java EE application to Quarkus. Focus on:
+    1. Update Maven dependencies from javax to jakarta
+    2. Add Quarkus BOM and extensions
+    3. Transform source code (imports, EJB to CDI, config)
+    4. Run tests and commit working changes
+  params:
+    - name: APP_ID
+      value: "42"
+    - name: HUB_BASE_URL
+      value: "https://hub.konveyor-tackle.svc:8443"
+    - name: HUB_TOKEN
+      valueFrom:
+        secretKeyRef:
+          name: hub-credentials
+          key: token
+    - name: REPO_URL
+      value: "https://github.com/konveyor-demos/coolstore.git"
+    - name: TARGET_BRANCH
+      value: "migration/quarkus"

@@ -1,0 +1,164 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: skillcards.konveyor.io
+spec:
+  group: konveyor.io
+  names:
+    kind: SkillCard
+    listKind: SkillCardList
+    plural: skillcards
+    singular: skillcard
+    shortNames:
+      - sc
+  scope: Namespaced
+  versions:
+    - name: v1alpha1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          description: >
+            SkillCard defines an individual agent skill or behavioral rule.
+            Adopts the skillimage.io/v1alpha1 SkillCard format for
+            compatibility with the skillimage OCI packaging ecosystem.
+
+            A SkillCard with type "skill" (default) is on-demand: only its
+            name and description are loaded at agent startup. The full
+            content activates when the agent invokes it.
+
+            A SkillCard with type "rule" is always-loaded: its full content
+            is injected into every agent turn and counts toward the LLM's
+            context budget.
+
+            Content can be provided in two ways:
+            - image: An OCI image ref (built via skillctl). Mounted into
+              the agent pod as a read-only ImageVolume.
+            - content: Inline markdown. For the initial implementation,
+              mounted via a ConfigMap. Future: a controller will
+              automatically build inline content into an OCI image via
+              skillimage's Go library and push to the cluster's registry
+              (e.g. OpenShift internal registry), updating status.image
+              with the resolved ref.
+          required:
+            - spec
+          properties:
+            apiVersion:
+              type: string
+            kind:
+              type: string
+            metadata:
+              type: object
+            spec:
+              type: object
+              required:
+                - description
+              properties:
+                type:
+                  type: string
+                  enum:
+                    - skill
+                    - rule
+                  default: skill
+                  description: >
+                    "skill" = on-demand capability (name+description loaded
+                    at startup, full content on demand). "rule" = always-loaded
+                    behavioral constraint (full content every turn, counts
+                    toward context budget).
+                description:
+                  type: string
+                  description: >
+                    Human-readable description of what this skill does or
+                    what this rule enforces. Used by the agent runtime for
+                    skill discovery and by the UI for display.
+                image:
+                  type: string
+                  description: >
+                    OCI image reference for a skill packaged via skillimage
+                    (skillctl build/push). The image contains SKILL.md and
+                    any supporting files (scripts, references, examples).
+                    Mounted into agent pods as a read-only ImageVolume.
+                    Mutually exclusive with content.
+                content:
+                  type: string
+                  description: >
+                    Inline markdown content for simple skills or rules that
+                    don't need supporting files. Mounted into agent pods via
+                    ConfigMap. Mutually exclusive with image. Future: the
+                    controller will build this into an OCI image
+                    automatically.
+                version:
+                  type: string
+                  description: >
+                    Semantic version of the skill. When using an OCI image,
+                    the version is typically encoded in the image tag. For
+                    inline content, this tracks revisions.
+                tags:
+                  type: array
+                  items:
+                    type: string
+                  description: >
+                    Labels for discovery and filtering. Examples:
+                    "migration", "java", "maven", "quarkus".
+                globs:
+                  type: array
+                  items:
+                    type: string
+                  description: >
+                    File glob patterns that scope when this skill/rule
+                    applies. Examples: "pom.xml", "*.java",
+                    "src/main/**/*.xml". An empty list means the skill
+                    applies to all files.
+                governance:
+                  type: string
+                  enum:
+                    - governed
+                    - federated
+                  description: >
+                    "governed" = cannot be overridden by downstream
+                    sources. "federated" = can be extended or overridden.
+                    Aligns with skillimage/pallet governance model.
+            status:
+              type: object
+              properties:
+                image:
+                  type: string
+                  description: >
+                    Resolved OCI image reference. For SkillCards with
+                    spec.image, this echoes the spec value. For SkillCards
+                    with spec.content, this is populated by the controller
+                    after building and pushing the OCI image. Empty until
+                    the image is available.
+                contentSize:
+                  type: integer
+                  description: >
+                    Size of the skill/rule content in bytes. Used for
+                    context budget validation. For rules (type: rule),
+                    this counts toward the LLM's context window budget.
+                ready:
+                  type: boolean
+                  description: >
+                    True when the SkillCard is ready to be consumed by an
+                    Agent. For image-based cards, true when the image is
+                    pullable. For content-based cards, always true (or
+                    true after OCI build completes in future).
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Type
+          type: string
+          jsonPath: .spec.type
+        - name: Description
+          type: string
+          jsonPath: .spec.description
+          priority: 1
+        - name: Image
+          type: string
+          jsonPath: .spec.image
+        - name: Ready
+          type: boolean
+          jsonPath: .status.ready
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp

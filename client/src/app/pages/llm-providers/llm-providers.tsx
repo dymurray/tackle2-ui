@@ -1,8 +1,8 @@
 import { FC, useCallback, useState } from "react";
 import { AxiosError } from "axios";
 import {
-  Button,
   ButtonVariant,
+  Button,
   EmptyState,
   EmptyStateBody,
   EmptyStateHeader,
@@ -22,26 +22,28 @@ import {
 import { CubesIcon, PencilAltIcon, TrashIcon } from "@patternfly/react-icons";
 import { Table, Tbody, Td, Th, Thead, Tr } from "@patternfly/react-table";
 
-import type { Agent } from "@app/api/k8s-models";
+import type { LLMProvider } from "@app/api/k8s-models";
 import { AppPlaceholder } from "@app/components/AppPlaceholder";
 import { ConditionalRender } from "@app/components/ConditionalRender";
 import { ConfirmDialog } from "@app/components/ConfirmDialog";
 import { useNotifications } from "@app/components/NotificationsContext";
-import { useDeleteAgentMutation, useFetchAgents } from "@app/queries/agents";
+import {
+  useFetchLLMProviders,
+  useDeleteLLMProviderMutation,
+} from "@app/queries/llmproviders";
 import { getAxiosErrorMessage } from "@app/utils/utils";
 
-import AgentDetailDrawer from "./components/agent-detail-drawer";
-import AgentForm from "./components/agent-form";
+import LLMProviderForm from "./components/llm-provider-form";
 
-const Agents: FC = () => {
+const LLMProviders: FC = () => {
   const { pushNotification } = useNotifications();
+  const [toDelete, setToDelete] = useState<LLMProvider | null>(null);
+  const [openCreate, setOpenCreate] = useState(false);
+  const [providerToEdit, setProviderToEdit] = useState<LLMProvider | null>(
+    null
+  );
 
-  const [openCreateAgent, setOpenCreateAgent] = useState(false);
-  const [agentToEdit, setAgentToEdit] = useState<Agent | null>(null);
-  const [agentToDelete, setAgentToDelete] = useState<Agent | null>(null);
-  const [activeAgent, setActiveAgent] = useState<Agent | null>(null);
-
-  const { agents, isLoading, fetchError } = useFetchAgents();
+  const { llmProviders, isLoading, fetchError } = useFetchLLMProviders();
 
   const onError = useCallback(
     (error: AxiosError) => {
@@ -53,10 +55,10 @@ const Agents: FC = () => {
     [pushNotification]
   );
 
-  const { mutate: deleteAgent } = useDeleteAgentMutation(
-    (agent) =>
+  const { mutate: doDelete } = useDeleteLLMProviderMutation(
+    (p) =>
       pushNotification({
-        title: `Deleted agent "${agent.metadata.name}"`,
+        title: `Deleted LLM provider "${p.metadata.name}"`,
         variant: "success",
       }),
     onError
@@ -66,12 +68,12 @@ const Agents: FC = () => {
     <>
       <PageSection variant={PageSectionVariants.light}>
         <TextContent>
-          <Text component="h1">Agents</Text>
+          <Text component="h1">LLM Providers</Text>
         </TextContent>
       </PageSection>
       <PageSection>
         <ConditionalRender
-          when={isLoading && !(agents.length || fetchError)}
+          when={isLoading && !(llmProviders.length || fetchError)}
           then={<AppPlaceholder />}
         >
           <div
@@ -85,61 +87,59 @@ const Agents: FC = () => {
                   <ToolbarItem>
                     <Button
                       type="button"
-                      id="create-new-agent"
-                      aria-label="Create new agent"
+                      id="create-new-llm-provider"
+                      aria-label="Create new LLM provider"
                       variant={ButtonVariant.primary}
-                      onClick={() => setOpenCreateAgent(true)}
+                      onClick={() => setOpenCreate(true)}
                     >
-                      New Agent
+                      New LLM Provider
                     </Button>
                   </ToolbarItem>
                 </ToolbarGroup>
               </ToolbarContent>
             </Toolbar>
 
-            <Table aria-label="Agents table">
+            <Table aria-label="LLM providers table">
               <Thead>
                 <Tr>
                   <Th>Name</Th>
                   <Th>Description</Th>
-                  <Th>LLM Provider</Th>
-                  <Th>Model</Th>
+                  <Th>Provider</Th>
+                  <Th>Models</Th>
                   <Th>Ready</Th>
                   <Th />
                 </Tr>
               </Thead>
               <Tbody>
-                {agents.length === 0 ? (
+                {llmProviders.length === 0 ? (
                   <Tr>
                     <Td colSpan={6}>
                       <EmptyState variant="sm">
                         <EmptyStateHeader
-                          titleText="No agents configured"
+                          titleText="No LLM providers"
                           headingLevel="h2"
                           icon={<EmptyStateIcon icon={CubesIcon} />}
                         />
                         <EmptyStateBody>
-                          Create an Agent to define skills, LLM configuration,
-                          and a container image for running agentic workloads.
+                          LLMProvider CRDs define LLM endpoints, credentials,
+                          and available models.
                         </EmptyStateBody>
                       </EmptyState>
                     </Td>
                   </Tr>
                 ) : (
-                  agents.map((agent) => (
-                    <Tr
-                      key={agent.metadata.name}
-                      isClickable
-                      onRowClick={() => setActiveAgent(agent)}
-                    >
-                      <Td>{agent.metadata.name}</Td>
-                      <Td modifier="truncate">{agent.spec.description}</Td>
-                      <Td>{agent.spec.llmProviderRef?.name || "—"}</Td>
-                      <Td>{agent.spec.model || "—"}</Td>
+                  llmProviders.map((p) => (
+                    <Tr key={p.metadata.name}>
+                      <Td>{p.metadata.name}</Td>
+                      <Td modifier="truncate">{p.spec.description}</Td>
+                      <Td>{p.spec.provider || "—"}</Td>
                       <Td>
-                        {agent.status?.ready === true ? (
+                        {p.spec.models?.map((m) => m.name).join(", ") || "—"}
+                      </Td>
+                      <Td>
+                        {p.status?.ready === true ? (
                           <Label color="green">Ready</Label>
-                        ) : agent.status?.ready === false ? (
+                        ) : p.status?.ready === false ? (
                           <Label color="grey">Pending</Label>
                         ) : (
                           "—"
@@ -150,20 +150,14 @@ const Agents: FC = () => {
                           <Button
                             variant="plain"
                             icon={<PencilAltIcon />}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAgentToEdit(agent);
-                            }}
+                            onClick={() => setProviderToEdit(p)}
                           />
                         </Tooltip>
                         <Tooltip content="Delete">
                           <Button
                             variant="plain"
                             icon={<TrashIcon />}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAgentToDelete(agent);
-                            }}
+                            onClick={() => setToDelete(p)}
                             isDanger
                           />
                         </Tooltip>
@@ -177,47 +171,42 @@ const Agents: FC = () => {
         </ConditionalRender>
       </PageSection>
 
-      <AgentDetailDrawer
-        agent={activeAgent}
-        onCloseClick={() => setActiveAgent(null)}
-      />
-
       <Modal
-        title="New Agent"
+        title="New LLM Provider"
         variant="medium"
-        isOpen={openCreateAgent}
-        onClose={() => setOpenCreateAgent(false)}
+        isOpen={openCreate}
+        onClose={() => setOpenCreate(false)}
       >
-        <AgentForm onClose={() => setOpenCreateAgent(false)} />
+        <LLMProviderForm onClose={() => setOpenCreate(false)} />
       </Modal>
 
       <Modal
-        title="Edit Agent"
+        title="Edit LLM Provider"
         variant="medium"
-        isOpen={!!agentToEdit}
-        onClose={() => setAgentToEdit(null)}
+        isOpen={!!providerToEdit}
+        onClose={() => setProviderToEdit(null)}
       >
-        <AgentForm
-          key={agentToEdit?.metadata.name ?? ""}
-          agent={agentToEdit}
-          onClose={() => setAgentToEdit(null)}
+        <LLMProviderForm
+          key={providerToEdit?.metadata.name ?? ""}
+          llmProvider={providerToEdit}
+          onClose={() => setProviderToEdit(null)}
         />
       </Modal>
 
       <ConfirmDialog
-        title={`Delete agent "${agentToDelete?.metadata.name ?? ""}"?`}
-        isOpen={!!agentToDelete}
+        title={`Delete LLM provider "${toDelete?.metadata.name ?? ""}"?`}
+        isOpen={!!toDelete}
         titleIconVariant="warning"
-        message="This agent will be permanently deleted."
+        message="This LLM provider will be permanently deleted."
         confirmBtnVariant={ButtonVariant.danger}
         confirmBtnLabel="Delete"
         cancelBtnLabel="Cancel"
-        onCancel={() => setAgentToDelete(null)}
-        onClose={() => setAgentToDelete(null)}
+        onCancel={() => setToDelete(null)}
+        onClose={() => setToDelete(null)}
         onConfirm={() => {
-          if (agentToDelete) {
-            deleteAgent(agentToDelete);
-            setAgentToDelete(null);
+          if (toDelete) {
+            doDelete(toDelete);
+            setToDelete(null);
           }
         }}
       />
@@ -225,4 +214,4 @@ const Agents: FC = () => {
   );
 };
 
-export default Agents;
+export default LLMProviders;

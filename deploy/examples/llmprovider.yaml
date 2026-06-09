@@ -1,0 +1,31 @@
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: openai-credentials
+  namespace: konveyor-tackle
+type: Opaque
+stringData:
+  api-key: "sk-placeholder-replace-with-real-key"
+---
+apiVersion: konveyor.io/v1alpha1
+kind: LLMProvider
+metadata:
+  name: openai
+  namespace: konveyor-tackle
+spec:
+  description: OpenAI API — GPT-4o and GPT-4o-mini models
+  url: https://api.openai.com/v1
+  provider: openai
+  credentialsSecretRef:
+    name: openai-credentials
+    key: api-key
+  models:
+    - name: gpt-4o
+      contextWindow: 128000
+      tier: premium
+    - name: gpt-4o-mini
+      contextWindow: 128000
+      tier: efficient
+status:
+  ready: true

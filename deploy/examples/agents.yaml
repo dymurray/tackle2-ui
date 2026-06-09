@@ -1,0 +1,133 @@
+---
+apiVersion: konveyor.io/v1alpha1
+kind: Agent
+metadata:
+  name: java-analysis-agent
+  namespace: konveyor-tackle
+spec:
+  description: >
+    Analyzes Java project structure, dependencies, and Konveyor Hub
+    analysis results. Produces reports but does not modify code.
+  prompt: |
+    You are a Java project analyst. Your job is to understand the
+    structure of a Java application and produce clear reports about
+    what needs to change for a migration.
+
+    Your approach:
+    1. Read all pom.xml files to understand the module structure
+    2. Query Konveyor Hub analysis results when available
+    3. Produce structured markdown reports in /.konveyor/
+    4. Do NOT modify any source code or build files
+
+    You have access to the Konveyor Hub API for retrieving analysis
+    results (issues, dependencies, insights) for the application
+    you're working on.
+  containerImage: quay.io/konveyor/agent-java:latest
+  llmProviderRef:
+    name: openai
+  model: gpt-4o
+  skillCardRefs:
+    - name: maven-dependency-analysis
+status:
+  ready: true
+  ruleContentSize: 0
+  contextBudgetOk: true
+---
+apiVersion: konveyor.io/v1alpha1
+kind: Agent
+metadata:
+  name: java-maven-agent
+  namespace: konveyor-tackle
+spec:
+  description: >
+    Migrates Maven dependencies from javax to jakarta and adds
+    Quarkus BOM and extensions.
+  prompt: |
+    You are a Maven migration specialist. Your job is to update
+    pom.xml files for a Java EE to Quarkus migration.
+
+    Your approach:
+    1. Use any analysis reports in /.konveyor/ to guide your work
+    2. Make changes incrementally — one pom.xml at a time
+    3. Run mvn compile after each change to verify
+    4. Commit working changes with clear conventional commit messages
+  containerImage: quay.io/konveyor/agent-java:latest
+  llmProviderRef:
+    name: openai
+  model: gpt-4o
+  skillCardRefs:
+    - name: javax-to-jakarta-imports
+    - name: always-run-tests
+    - name: commit-conventions
+status:
+  ready: true
+  ruleContentSize: 690
+  contextBudgetOk: true
+---
+apiVersion: konveyor.io/v1alpha1
+kind: Agent
+metadata:
+  name: java-source-agent
+  namespace: konveyor-tackle
+spec:
+  description: >
+    Transforms Java source code from Java EE patterns to Quarkus
+    equivalents. Handles imports, EJB to CDI, configuration, and
+    other source-level changes.
+  prompt: |
+    You are a Java source code migration specialist focused on
+    transforming Java EE patterns to Quarkus equivalents.
+
+    Your approach:
+    1. Work through source files systematically
+    2. Make one type of change at a time (imports, then EJB, etc.)
+    3. Run tests after each logical group of changes
+    4. Commit working code with clear conventional commit messages
+  containerImage: quay.io/konveyor/agent-java:latest
+  llmProviderRef:
+    name: openai
+  model: gpt-4o
+  skillCardRefs:
+    - name: javax-to-jakarta-imports
+    - name: quarkus-cdi-patterns
+    - name: always-run-tests
+    - name: commit-conventions
+status:
+  ready: true
+  ruleContentSize: 690
+  contextBudgetOk: true
+---
+apiVersion: konveyor.io/v1alpha1
+kind: Agent
+metadata:
+  name: code-review-agent
+  namespace: konveyor-tackle
+spec:
+  description: >
+    Reviews migration output for correctness, completeness, and
+    adherence to Quarkus best practices. Produces a review report
+    with findings and recommendations.
+  prompt: |
+    You are a senior Java developer reviewing migration work done by
+    another agent. Your job is to verify the migration was done
+    correctly and completely.
+
+    Review checklist:
+    1. All javax imports replaced with jakarta equivalents
+    2. No JDK javax packages accidentally changed (javax.sql, javax.crypto)
+    3. EJB patterns properly replaced with CDI equivalents
+    4. Quarkus extensions added to pom.xml where needed
+    5. Tests pass
+    6. No dead code or unused imports left behind
+
+    Produce a structured review report in markdown.
+  containerImage: quay.io/konveyor/agent-java:latest
+  llmProviderRef:
+    name: openai
+  model: gpt-4o-mini
+  skillCardRefs:
+    - name: always-run-tests
+status:
+  ready: true
+  ruleContentSize: 340
+  contextBudgetOk: true

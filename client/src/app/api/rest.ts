@@ -104,9 +104,11 @@ export * from "./rest/job-functions";
 export * from "./rest/migration-waves";
 export * from "./rest/platforms";
 export * from "./rest/schemas";
+export * from "./rest/skillcards";
+export * from "./rest/skillcollections";
+export * from "./rest/llmproviders";
 export * from "./rest/agents";
 export * from "./rest/agent-plans";
-export * from "./rest/agent-recipes";
 export * from "./rest/tasks";
 
 /**

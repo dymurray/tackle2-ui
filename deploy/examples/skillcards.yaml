@@ -1,0 +1,183 @@
+---
+apiVersion: konveyor.io/v1alpha1
+kind: SkillCard
+metadata:
+  name: maven-dependency-analysis
+  namespace: konveyor-tackle
+spec:
+  type: skill
+  description: >
+    Analyze Maven pom.xml files to identify javax dependencies that
+    need migration to jakarta equivalents. Produces a dependency
+    report with recommended version mappings.
+  version: "1.0.0"
+  tags:
+    - migration
+    - java
+    - maven
+  globs:
+    - "pom.xml"
+    - "**/pom.xml"
+  content: |
+    # Maven Dependency Analysis
+
+    Analyze all `pom.xml` files in the project to identify dependencies
+    using the `javax.*` namespace that must be migrated to `jakarta.*`.
+
+    ## Steps
+    1. Parse every `pom.xml` (root and modules)
+    2. Identify dependencies with groupId starting with `javax.`
+    3. For each, look up the jakarta equivalent and target version
+    4. Produce a markdown report listing each dependency, its current
+       version, and the recommended jakarta replacement
+
+    ## Known mappings
+    | javax groupId | jakarta groupId | Recommended version |
+    |---|---|---|
+    | javax.servlet:javax.servlet-api | jakarta.servlet:jakarta.servlet-api | 6.0.0 |
+    | javax.persistence:javax.persistence-api | jakarta.persistence:jakarta.persistence-api | 3.1.0 |
+    | javax.enterprise:cdi-api | jakarta.enterprise:jakarta.enterprise.cdi-api | 4.0.1 |
+    | javax.ws.rs:javax.ws.rs-api | jakarta.ws.rs:jakarta.ws.rs-api | 3.1.0 |
+    | javax.inject:javax.inject | jakarta.inject:jakarta.inject-api | 2.0.1 |
+    | javax.annotation:javax.annotation-api | jakarta.annotation:jakarta.annotation-api | 2.1.1 |
+status:
+  contentSize: 980
+  ready: true
+---
+apiVersion: konveyor.io/v1alpha1
+kind: SkillCard
+metadata:
+  name: javax-to-jakarta-imports
+  namespace: konveyor-tackle
+spec:
+  type: skill
+  description: >
+    Transform Java source files from javax.* imports to their
+    jakarta.* equivalents. Handles package renames across the
+    full Jakarta EE 10 specification.
+  version: "1.0.0"
+  tags:
+    - migration
+    - java
+    - jakarta
+  globs:
+    - "**/*.java"
+  content: |
+    # javax to jakarta Import Migration
+
+    Transform all Java source files to replace `javax.*` imports
+    with their `jakarta.*` equivalents.
+
+    ## Rules
+    - `javax.servlet.*` → `jakarta.servlet.*`
+    - `javax.persistence.*` → `jakarta.persistence.*`
+    - `javax.enterprise.*` → `jakarta.enterprise.*`
+    - `javax.ws.rs.*` → `jakarta.ws.rs.*`
+    - `javax.inject.*` → `jakarta.inject.*`
+    - `javax.annotation.*` → `jakarta.annotation.*`
+    - `javax.transaction.*` → `jakarta.transaction.*`
+    - `javax.validation.*` → `jakarta.validation.*`
+    - `javax.json.*` → `jakarta.json.*`
+
+    ## Important
+    - Do NOT change `javax.sql.*` — this is part of the JDK, not Jakarta EE
+    - Do NOT change `javax.crypto.*` or `javax.net.*` — JDK packages
+    - Update both import statements and fully-qualified class references
+    - Run `mvn compile` after changes to verify
+status:
+  contentSize: 720
+  ready: true
+---
+apiVersion: konveyor.io/v1alpha1
+kind: SkillCard
+metadata:
+  name: quarkus-cdi-patterns
+  namespace: konveyor-tackle
+spec:
+  type: skill
+  description: >
+    Convert Java EE CDI patterns to Quarkus-native equivalents.
+    Handles bean discovery, producer methods, interceptors, and
+    Quarkus-specific annotations like @ApplicationScoped.
+  version: "1.0.0"
+  tags:
+    - migration
+    - java
+    - quarkus
+    - cdi
+  globs:
+    - "**/*.java"
+  content: |
+    # Quarkus CDI Pattern Migration
+
+    Convert Java EE CDI patterns to Quarkus equivalents.
+
+    ## Key changes
+    - Add `beans.xml` discovery mode or `@io.quarkus.arc.Unremovable`
+      for beans only used via `Instance<>` or reflection
+    - Replace `@javax.ejb.Stateless` → remove, use `@ApplicationScoped`
+    - Replace `@javax.ejb.Singleton` → `@jakarta.inject.Singleton`
+    - Replace EJB `@Schedule` → Quarkus `@io.quarkus.scheduler.Scheduled`
+    - Replace `@MessageDriven` → Quarkus SmallRye Reactive Messaging
+    - Quarkus uses build-time CDI: ensure all injection points are
+      resolvable at build time
+status:
+  contentSize: 610
+  ready: true
+---
+apiVersion: konveyor.io/v1alpha1
+kind: SkillCard
+metadata:
+  name: always-run-tests
+  namespace: konveyor-tackle
+spec:
+  type: rule
+  description: >
+    Rule: Always run the project's test suite after making code
+    changes. Never commit code that doesn't pass tests.
+  version: "1.0.0"
+  tags:
+    - quality
+    - testing
+  content: |
+    # Rule: Always Run Tests
+
+    After making ANY code change, you MUST run the project's test
+    suite before considering the change complete.
+
+    - For Maven projects: `mvn test`
+    - For Gradle projects: `gradle test`
+    - If tests fail, fix the failures before moving on
+    - Never commit code with failing tests
+    - If a test is flaky, note it but do not delete it
+status:
+  contentSize: 340
+  ready: true
+---
+apiVersion: konveyor.io/v1alpha1
+kind: SkillCard
+metadata:
+  name: commit-conventions
+  namespace: konveyor-tackle
+spec:
+  type: rule
+  description: >
+    Rule: Follow conventional commit message format and make
+    atomic, well-scoped commits.
+  version: "1.0.0"
+  tags:
+    - quality
+    - git
+  content: |
+    # Rule: Commit Conventions
+
+    Follow these commit conventions for all changes:
+
+    - Use conventional commit format: `type(scope): description`
+    - Types: feat, fix, refactor, chore, docs, test
+    - Each commit should be atomic — one logical change per commit
+    - Write a brief body explaining WHY, not just WHAT
+    - Example: `refactor(imports): migrate javax.servlet to jakarta.servlet`
+status:
+  contentSize: 350
+  ready: true
